@@ -1,0 +1,1622 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EroView - Dev SICAR</title>
+    
+    <!-- jQuery (antes do Bootstrap) -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    
+    <!-- Bootstrap CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --primary-color: #3d4852;
+            --secondary-color: #5c7cfa;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --warning-color: #ff9800;
+            --light-color: #f8f9fa;
+            --dark-color: #343a40;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7fa;
+            color: #333;
+            padding-bottom: 50px;
+        }
+        
+        .navbar {
+            background-color: var(--primary-color);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .navbar-brand {
+            font-weight: 700;
+            color: white;
+        }
+        
+        .section-title {
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            color: var(--primary-color);
+        }
+        
+        .card {
+            border: none;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        
+        .card-header {
+            background-color: var(--primary-color);
+            color: white;
+            font-weight: 600;
+            border-bottom: none;
+        }
+        
+        .form-control {
+            border-radius: 4px;
+            padding: 10px 15px;
+            border: 1px solid #ced4da;
+        }
+        
+        .form-control:focus {
+            border-color: var(--secondary-color);
+            box-shadow: 0 0 0 0.2rem rgba(92, 124, 250, 0.25);
+        }
+        
+        .btn {
+            border-radius: 4px;
+            padding: 8px 20px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background-color: var(--success-color);
+            border-color: var(--success-color);
+        }
+        
+        .btn-primary:hover {
+            background-color: #218838;
+            border-color: #1e7e34;
+        }
+        
+        .btn-secondary {
+            background-color: #e55039;
+            border-color: #e55039;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #cb4535;
+            border-color: #bf4130;
+        }
+        
+        .log-container {
+            height: 300px;
+            overflow-y: auto;
+            background-color: #f8f9fa;
+            border: 1px solid #eee;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 0.85rem;
+        }
+        
+        .log-entry {
+            padding: 3px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .log-info {
+            color: var(--primary-color);
+        }
+        
+        .log-success {
+            color: var(--success-color);
+        }
+        
+        .log-warning {
+            color: var(--warning-color);
+        }
+        
+        .log-error {
+            color: var(--danger-color);
+        }
+        
+        .step-container {
+            margin: 20px 0;
+        }
+        
+        .step-item {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+        
+        .step-icon {
+            margin-right: 15px;
+            font-size: 1.25rem;
+            color: var(--primary-color);
+        }
+        
+        .step-pending .step-icon {
+            color: #adb5bd;
+        }
+        
+        .step-running .step-icon {
+            color: var(--secondary-color);
+        }
+        
+        .step-success .step-icon {
+            color: var(--success-color);
+        }
+        
+        .step-error .step-icon {
+            color: var(--danger-color);
+        }
+        
+        .step-canceled .step-icon {
+            color: var(--warning-color);
+        }
+        
+        .step-content {
+            flex: 1;
+        }
+        
+        .step-name {
+            margin: 0;
+            font-weight: 600;
+        }
+        
+        .step-status {
+            margin: 0;
+            font-size: 0.85rem;
+            color: #6c757d;
+        }
+        
+        .property-info {
+            margin: 10px 0;
+        }
+        
+        .property-info .label {
+            font-weight: 600;
+        }
+        
+        .simulated-tag {
+            background-color: var(--warning-color);
+            color: white;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .navbar-brand .version {
+            font-size: 0.75rem;
+            opacity: 0.7;
+            margin-left: 5px;
+            font-weight: normal;
+        }
+        
+        .navbar-text {
+            color: rgba(255,255,255,0.8);
+            font-size: 1.5rem;
+        }
+        
+        .progress-bar {
+            height: 25px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            position: relative;
+            transition: width 0.3s ease-in-out;
+        }
+        
+        .progress-bar-stuck {
+            background-color: #ffc107; /* Amarelo para progresso travado */
+        }
+        
+        .progress-bar-running {
+            background-image: linear-gradient(45deg, 
+                rgba(255, 255, 255, 0.15) 25%, 
+                transparent 25%, 
+                transparent 50%, 
+                rgba(255, 255, 255, 0.15) 50%, 
+                rgba(255, 255, 255, 0.15) 75%, 
+                transparent 75%, 
+                transparent);
+            background-size: 40px 40px;
+            animation: progress-bar-stripes 2s linear infinite;
+        }
+        
+        @keyframes progress-bar-stripes {
+            from { background-position: 40px 0; }
+            to { background-position: 0 0; }
+        }
+        
+        .iframe-container {
+            position: relative;
+            width: 100%;
+            height: 0;
+            padding-bottom: 56.25%; /* 16:9 aspect ratio */
+            overflow: hidden;
+        }
+        
+        .iframe-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 0;
+        }
+        
+        .debug-container {
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.8rem;
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        
+        #loadingOverlay {
+            display: none; /* Inicialmente oculto */
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        
+        #noSearchMessage {
+            display: flex; /* Inicialmente visível */
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(245, 245, 245, 0.9);
+            z-index: 999;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            text-align: center;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-dark mb-4">
+        <div class="container">
+            <span class="navbar-brand">
+                <i class="fas fa-map-marked-alt me-2"></i>
+                EroView
+                <span class="version">v1.0.0</span>
+            </span>
+            <span class="navbar-text">
+                Dev SICAR
+            </span>
+        </div>
+    </nav>
+
+    <!-- Conteúdo principal -->
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-6">
+                <!-- Card de entrada de coordenadas -->
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-search-location me-2"></i> Busca por Coordenadas
+                    </div>
+                    <div class="card-body">
+                        <form id="searchForm">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="latitude" class="form-label">Latitude</label>
+                                    <input type="text" class="form-control" id="latitude" placeholder="-23.276064" value="-23.276064" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="longitude" class="form-label">Longitude</label>
+                                    <input type="text" class="form-control" id="longitude" placeholder="-53.266292" value="-53.266292" required>
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <button type="button" class="btn btn-primary" id="searchButton" onclick="startSearch()">
+                                    <i class="fas fa-search me-1"></i> Buscar
+                                </button>
+                                <button type="button" class="btn btn-secondary" id="cancelButton" disabled>
+                                    <i class="fas fa-times me-1"></i> Cancelar
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                
+                <!-- Card de progresso -->
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-tasks me-2"></i> Progresso
+                    </div>
+                    <div class="card-body">
+                        <div class="progress mb-3">
+                            <div class="progress-bar" id="progressBar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                        </div>
+                        <p class="mb-2"><strong>Status:</strong> <span id="statusMessage">Aguardando coordenadas...</span></p>
+                        <div class="step-container" id="stepsContainer">
+                            <!-- Passos serão preenchidos via JavaScript -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Card de logs -->
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-history me-2"></i> Logs de Operação
+                        <button type="button" class="btn btn-sm btn-outline-secondary float-end" onclick="clearLogs()">
+                            <i class="fas fa-trash"></i> Limpar
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="log-container" id="logContainer">
+                            <!-- Logs serão preenchidos via JavaScript -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Card de depuração para desenvolvedores -->
+                <div class="card mt-3 border-warning">
+                    <div class="card-header bg-warning text-dark">
+                        <i class="fas fa-bug me-2"></i> Depuração (Developer Mode)
+                        <button type="button" class="btn btn-sm btn-outline-dark float-end" onclick="clearDebugLogs()">
+                            <i class="fas fa-trash"></i> Limpar
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="debug-container" id="debugContainer">
+                            <!-- Logs de depuração serão mostrados aqui -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-lg-6">
+                <!-- Visualização do SICAR -->
+                <div class="card mb-4 shadow-sm">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-eye me-2"></i> Visualização do SICAR</h5>
+                        <div>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="refreshViewButton">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="expandViewButton">
+                                <i class="fas fa-expand"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <!-- Status da automação SICAR -->
+                        <div class="card mb-3 border-primary">
+                            <div class="card-header bg-primary text-white">
+                                <h6 class="mb-0"><i class="fas fa-robot me-2"></i> Status da Automação SICAR</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="progress mb-3" style="height: 25px;">
+                                    <div id="sicar_progress_bar" class="progress-bar progress-bar-striped" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                                </div>
+                                <div id="sicar_status_message" class="alert alert-info mb-0">
+                                    Aguardando início da busca...
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="sicarView" class="border bg-light overflow-hidden" style="height: 500px; position: relative;">
+                            <!-- Overlay de carregamento - inicialmente oculto -->
+                            <div id="loadingOverlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(255, 255, 255, 0.8); z-index: 1000; display: none;">
+                                <div class="text-center">
+                                    <div class="spinner-border text-primary my-3" role="status">
+                                        <span class="visually-hidden">Carregando...</span>
+                                    </div>
+                                    <h5>Carregando visualização...</h5>
+                                    <p class="text-muted">Por favor, aguarde enquanto buscamos a propriedade.</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Mensagem quando não há busca - inicialmente visível -->
+                            <div id="noSearchMessage" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(245, 245, 245, 0.9); z-index: 999; display: flex; justify-content: center; align-items: center; flex-direction: column; text-align: center; padding: 20px;">
+                                <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                                <h4>Faça uma busca para visualizar o mapa</h4>
+                                <p class="text-muted">Insira as coordenadas e clique em "Buscar" para iniciar</p>
+                            </div>
+                            <iframe id="sicarFrame" src="about:blank" style="width: 100%; height: 100%; border: none; display: none;"></iframe>
+                            <div id="mapView" style="width: 100%; height: 100%; display: none;">
+                                <img id="mapImage" src="" class="img-fluid" alt="Mapa da propriedade" style="max-width: 100%; max-height: 100%;">
+                            </div>
+                        </div>
+
+                        <!-- Informações da Propriedade -->
+                        <div id="propertyInfoCard" class="card mt-3" style="display: none;">
+                            <div class="card-header bg-success text-white">
+                                <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i> Informações da Propriedade</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-2">
+                                            <strong>Estado:</strong>
+                                            <span id="property_state">-</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-2">
+                                            <strong>Município:</strong>
+                                            <span id="property_city">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-2">
+                                            <strong>Nome:</strong>
+                                            <span id="property_name">-</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-2">
+                                            <strong>CAR:</strong>
+                                            <span id="property_car">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mb-2">
+                                    <strong>Área:</strong>
+                                    <span id="property_area">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal de erro -->
+    <div class="modal fade" id="errorModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">Erro</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="errorModalBody">
+                    <!-- Conteúdo do erro será preenchido via JavaScript -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Sistema global de captura de erros JavaScript
+        window.onerror = function(message, source, lineno, colno, error) {
+            logDebug(`ERRO JavaScript: ${message} (${source}:${lineno}:${colno})`, 'error');
+            return false;
+        };
+        
+        // Intercepta erros em Promises não tratadas
+        window.addEventListener('unhandledrejection', function(event) {
+            logDebug(`Erro de Promise não tratado: ${event.reason}`, 'error');
+        });
+        
+        // Função para registrar mensagens de depuração
+        function logDebug(message, level = 'debug') {
+            const debugContainer = document.getElementById('debugContainer');
+            const timestamp = new Date().toISOString();
+            const entry = document.createElement('div');
+            
+            // Define a classe baseada no nível
+            const levelClass = level === 'error' ? 'text-danger' : 
+                              level === 'warning' ? 'text-warning' : 
+                              level === 'info' ? 'text-info' : 'text-secondary';
+            
+            entry.className = levelClass;
+            entry.innerHTML = `<small>[${timestamp}] [${level.toUpperCase()}]</small> ${message}`;
+            debugContainer.appendChild(entry);
+            
+            // Auto-scroll para o final
+            debugContainer.scrollTop = debugContainer.scrollHeight;
+            
+            // Também envia para o console
+            if (level === 'error') {
+                console.error(message);
+            } else if (level === 'warning') {
+                console.warn(message);
+            } else {
+                console.log(message);
+            }
+        }
+        
+        // Intercepta todas as requisições fetch para monitoramento
+        const originalFetch = window.fetch;
+        window.fetch = function() {
+            const url = arguments[0];
+            const options = arguments[1] || {};
+            
+            logDebug(`Iniciando requisição fetch para ${url}`, 'info');
+            logDebug(`Método: ${options.method || 'GET'}, Headers: ${JSON.stringify(options.headers || {})}`);
+            if (options.body) {
+                try {
+                    logDebug(`Corpo da requisição: ${options.body}`);
+                } catch (e) {
+                    logDebug(`Corpo da requisição: [não pode ser convertido para string]`);
+                }
+            }
+            
+            return originalFetch.apply(this, arguments)
+                .then(response => {
+                    logDebug(`Resposta recebida de ${url}: Status ${response.status}`, 
+                             response.ok ? 'info' : 'warning');
+                    
+                    // Clona a resposta para não destruir o corpo original
+                    const clone = response.clone();
+                    
+                    // Tenta extrair o corpo da resposta como texto para logging
+                    clone.text().then(text => {
+                        try {
+                            const jsonResponse = JSON.parse(text);
+                            logDebug(`Corpo da resposta JSON: ${JSON.stringify(jsonResponse)}`);
+                        } catch (e) {
+                            // Se não for JSON, mostra como texto
+                            if (text.length > 500) {
+                                logDebug(`Corpo da resposta (truncado): ${text.substring(0, 500)}...`);
+                            } else {
+                                logDebug(`Corpo da resposta: ${text}`);
+                            }
+                        }
+                    }).catch(e => {
+                        logDebug(`Erro ao extrair corpo da resposta: ${e.message}`, 'error');
+                    });
+                    
+                    return response;
+                })
+                .catch(error => {
+                    logDebug(`Erro na requisição fetch para ${url}: ${error.message}`, 'error');
+                    throw error;
+                });
+        };
+        
+        let searchId = null;
+        let statusCheckInterval = null;
+        let progressReportCount = 0;
+        
+        // Função para atualizar a barra de progresso
+        function updateProgress(status, progress) {
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            
+            if (progressBar && progressText) {
+                progressBar.style.width = `${progress}%`;
+                progressBar.setAttribute('aria-valuenow', progress);
+                progressText.innerText = `${progress}%`;
+                
+                // Remove classes antigas
+                progressBar.classList.remove('bg-primary', 'bg-success', 'bg-warning', 'bg-danger', 'bg-secondary', 'progress-bar-running', 'progress-bar-stuck');
+                progressBar.classList.remove('progress-bar-striped', 'progress-bar-animated');
+                
+                // Define as cores com base no status
+                if (status === 'running') {
+                    progressBar.classList.add('bg-warning', 'progress-bar-striped', 'progress-bar-animated');
+                } else if (status === 'success') {
+                    progressBar.classList.add('bg-success');
+                } else if (status === 'error') {
+                    progressBar.classList.add('bg-danger');
+                } else if (status === 'canceled') {
+                    progressBar.classList.add('bg-secondary');
+                } else if (status === 'stuck') {
+                    progressBar.classList.add('bg-warning', 'progress-bar-stuck');
+                } else {
+                    progressBar.classList.add('bg-primary');
+                }
+            }
+        }
+        
+        // Função para atualizar as etapas
+        function updateSteps(steps) {
+            const stepsContainer = document.getElementById('stepsContainer');
+            stepsContainer.innerHTML = '';
+            
+            steps.forEach(step => {
+                const stepItem = document.createElement('div');
+                stepItem.className = 'step-item mb-2';
+                
+                let statusIcon = '';
+                let statusClass = '';
+                
+                switch(step.status) {
+                    case 'pending':
+                        statusIcon = '<i class="fas fa-clock text-secondary"></i>';
+                        statusClass = 'text-secondary';
+                        break;
+                    case 'running':
+                        statusIcon = '<i class="fas fa-spinner fa-spin text-primary"></i>';
+                        statusClass = 'text-primary font-weight-bold';
+                        break;
+                    case 'success':
+                        statusIcon = '<i class="fas fa-check-circle text-success"></i>';
+                        statusClass = 'text-success';
+                        break;
+                    case 'error':
+                        statusIcon = '<i class="fas fa-exclamation-circle text-danger"></i>';
+                        statusClass = 'text-danger';
+                        break;
+                }
+                
+                stepItem.innerHTML = `
+                    <div class="${statusClass}">
+                        ${statusIcon} ${step.name || step.description}
+                    </div>
+                `;
+                
+                stepsContainer.appendChild(stepItem);
+            });
+        }
+        
+        // Função para verificar o status da busca
+        function checkSearchStatus() {
+            fetch('/status')
+                .then(response => response.json())
+                .then(data => {
+                    // Atualiza progresso e status
+                    updateProgress(data.status, data.progress);
+                    
+                    // Atualiza etapas
+                    if (data.steps) {
+                        updateSteps(data.steps);
+                    }
+                    
+                    // Atualiza logs
+                    if (data.logs && data.logs.length > 0) {
+                        updateLogs(data.logs);
+                    }
+                    
+                    // Se busca concluída ou falhou, limpa o intervalo
+                    if (data.status === 'success' || data.status === 'error') {
+                        clearInterval(statusCheckInterval);
+                        
+                        // Exibe mensagem de resultado
+                        if (data.status === 'success' && data.result) {
+                            showSearchResult(data.result);
+                        } else if (data.status === 'error') {
+                            showErrorMessage(data.error);
+                        }
+                        
+                        // Habilita o botão de busca novamente
+                        document.getElementById('searchButton').disabled = false;
+                        document.getElementById('cancelButton').disabled = true;
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro ao verificar status:', error);
+                });
+        }
+        
+        // Função para atualizar logs
+        function updateLogs(logs) {
+            const logContainer = document.getElementById('logContainer');
+            let logHtml = '';
+            
+            logs.slice(-25).forEach(log => {
+                const logClass = `log-${log.level}`;
+                logHtml += `<div class="log-entry ${logClass}">
+                    <span class="log-time">${log.timestamp}</span>
+                    <span class="log-message">${log.message}</span>
+                </div>`;
+            });
+            
+            logContainer.innerHTML = logHtml;
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+        
+        // Função para exibir o resultado da busca
+        function showSearchResult(result) {
+            const resultContainer = document.getElementById('resultContainer');
+            
+            let htmlContent = `
+                <div class="alert alert-success">
+                    <h5>Propriedade Encontrada!</h5>
+                </div>
+                <div class="card mb-3">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Dados da Propriedade</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>Código CAR:</strong> ${result.car_code || 'Não disponível'}</p>
+                                <p><strong>Coordenadas:</strong> ${result.coordinates || 'Não disponível'}</p>
+                                <p><strong>Estado:</strong> ${result.estado || 'Não disponível'}</p>
+                                <p><strong>Município:</strong> ${result.municipio || 'Não disponível'}</p>
+                                <p><strong>Área Total:</strong> ${result.area_total || 'Não disponível'}</p>
+                                <p><strong>Data/Hora:</strong> ${result.timestamp || 'Não disponível'}</p>
+                            </div>
+                            <div class="col-md-6 text-center">
+            `;
+            
+            // Adiciona visualização do iframe SICAR (se disponível)
+            if (result.sicar_map_url) {
+                htmlContent += `
+                    <a href="${result.sicar_map_url}" target="_blank" class="btn btn-outline-primary mb-3">
+                        <i class="fas fa-external-link-alt"></i> Abrir no SICAR
+                    </a>
+                    <div class="iframe-container mb-3">
+                        <iframe src="${result.sicar_map_url}" class="sicar-iframe" id="sicarIframe"></iframe>
+                    </div>
+                `;
+            }
+            
+            // Adiciona imagem do mapa (se disponível)
+            if (result.map_path) {
+                htmlContent += `
+                    <div class="text-center">
+                        <img src="/maps/${result.map_path.split('/').pop()}" 
+                             class="img-fluid border rounded" 
+                             alt="Mapa da Propriedade">
+                    </div>
+                `;
+            }
+            
+            htmlContent += `
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            resultContainer.innerHTML = htmlContent;
+            resultContainer.classList.remove('d-none');
+            
+            // Scroll para o resultado
+            resultContainer.scrollIntoView({behavior: 'smooth'});
+        }
+        
+        // Função para exibir mensagem de erro
+        function showErrorMessage(error) {
+            const resultContainer = document.getElementById('resultContainer');
+            
+            let errorMessage = 'Ocorreu um erro durante a busca.';
+            if (error && error.message) {
+                errorMessage = error.message;
+            }
+            
+            resultContainer.innerHTML = `
+                <div class="alert alert-danger">
+                    <h5><i class="fas fa-exclamation-triangle"></i> Falha na Busca</h5>
+                    <p>${errorMessage}</p>
+                </div>
+            `;
+            
+            resultContainer.classList.remove('d-none');
+        }
+        
+        // Função para iniciar busca
+        function startSearch() {
+            console.log("startSearch chamada");
+            
+            // Limpa busca anterior
+            if (statusCheckInterval) {
+                clearInterval(statusCheckInterval);
+            }
+            
+            // Obtém coordenadas
+            const latInput = document.getElementById('latitude');
+            const lonInput = document.getElementById('longitude');
+            
+            // Valida entrada
+            if (!latInput || !lonInput || !latInput.value || !lonInput.value) {
+                alert('Por favor, informe latitude e longitude');
+                return;
+            }
+            
+            // Verifica formato das coordenadas
+            const lat = parseFloat(latInput.value);
+            const lon = parseFloat(lonInput.value);
+            
+            if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+                alert('Coordenadas inválidas. Latitude deve estar entre -90 e 90, e longitude entre -180 e 180.');
+                return;
+            }
+            
+            console.log(`Enviando busca para coordenadas: ${lat}, ${lon}`);
+            
+            // Limpa resultados anteriores
+            const resultContainer = document.getElementById('resultContainer');
+            if (resultContainer) {
+                resultContainer.classList.add('d-none');
+                resultContainer.innerHTML = '';
+            }
+            
+            // Desabilita botão de busca e habilita cancelamento
+            const searchButton = document.getElementById('searchButton');
+            const cancelButton = document.getElementById('cancelButton');
+            
+            if (searchButton) searchButton.disabled = true;
+            if (cancelButton) cancelButton.disabled = false;
+            
+            // Reseta progresso
+            updateProgress('running', 0);
+            progressReportCount = 0;
+            
+            try {
+                // Envia requisição para iniciar busca
+                fetch('/iniciar', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        lat: lat,
+                        lon: lon
+                    })
+                })
+                .then(response => {
+                    console.log("Resposta recebida:", response);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log("Dados recebidos:", data);
+                    if (data.status === 'error') {
+                        showErrorMessage({message: data.message});
+                        
+                        // Reativa botão de busca
+                        document.getElementById('searchButton').disabled = false;
+                        document.getElementById('cancelButton').disabled = true;
+                    } else {
+                        // Inicia verificação de status
+                        statusCheckInterval = setInterval(checkSearchStatus, 1000);
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro ao iniciar busca:', error);
+                    showErrorMessage({message: 'Falha ao iniciar busca. Por favor, tente novamente.'});
+                    
+                    // Reativa botão de busca
+                    document.getElementById('searchButton').disabled = false;
+                    document.getElementById('cancelButton').disabled = true;
+                });
+            } catch (error) {
+                console.error('Erro ao iniciar busca:', error);
+                showErrorMessage({message: 'Falha ao iniciar busca. Por favor, tente novamente.'});
+                
+                // Reativa botão de busca
+                document.getElementById('searchButton').disabled = false;
+                document.getElementById('cancelButton').disabled = true;
+            }
+        }
+        
+        // Função para cancelar busca
+        function cancelSearch() {
+            try {
+                fetch('/cancelar', {
+                    method: 'POST'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Exibe mensagem
+                    document.getElementById('statusMessage').textContent = 'Busca cancelada.';
+                    
+                    // Reativa botão de busca
+                    document.getElementById('searchButton').disabled = false;
+                    document.getElementById('cancelButton').disabled = true;
+                    
+                    // Limpa intervalo de verificação
+                    if (statusCheckInterval) {
+                        clearInterval(statusCheckInterval);
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro ao cancelar busca:', error);
+                });
+            } catch (error) {
+                console.error('Erro ao cancelar busca:', error);
+            }
+        }
+        
+        // Função para extrair coordenadas de URL do Google Maps
+        function extractFromGoogleMapsUrl() {
+            const url = prompt('Cole a URL do Google Maps:');
+            if (!url) return;
+            
+            const regex = /@(-?\d+\.\d+),(-?\d+\.\d+)/;
+            const match = url.match(regex);
+            
+            if (match && match.length === 3) {
+                document.getElementById('latitude').value = match[1];
+                document.getElementById('longitude').value = match[2];
+            } else {
+                alert('Não foi possível extrair coordenadas da URL. Formato não reconhecido.');
+            }
+        }
+        
+        // Função para testar com coordenadas de Douradina, PR
+        function testDouradina() {
+            document.getElementById('latitude').value = '-23.276064';
+            document.getElementById('longitude').value = '-53.266292';
+            startSearch();
+        }
+        
+        // Preenche as coordenadas iniciais
+        document.addEventListener('DOMContentLoaded', function() {
+            const latInput = document.getElementById('latitude');
+            const lonInput = document.getElementById('longitude');
+            
+            // Define coordenadas padrão para Douradina, Paraná
+            if (latInput && !latInput.value) latInput.value = "-23.276064";
+            if (lonInput && !lonInput.value) lonInput.value = "-53.266292";
+            
+            // Adiciona eventos para os botões
+            const cancelButton = document.getElementById('cancelButton');
+            const extractButton = document.getElementById('extractButton');
+            const searchForm = document.getElementById('searchForm');
+            
+            if (cancelButton) cancelButton.addEventListener('click', cancelSearch);
+            if (extractButton) extractButton.addEventListener('click', extractFromGoogleMapsUrl);
+            
+            // Previne o comportamento padrão do formulário
+            if (searchForm) {
+                searchForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                });
+            }
+            
+            // Verifica status inicial
+            checkStatusSafely();
+            
+            // Esconde a mensagem de carregamento ao iniciar
+            $('#loadingOverlay').hide();
+            $('#noSearchMessage').show();
+        });
+        
+        // Função para verificar status com proteção contra erros
+        function checkStatusSafely() {
+            try {
+                checkSearchStatus();
+            } catch (error) {
+                logDebug(`Erro ao verificar status: ${error.message}`, 'error');
+            }
+        }
+        
+        // Função para limpar logs
+        function clearLogs() {
+            const logContainer = document.getElementById('logContainer');
+            logContainer.innerHTML = '';
+        }
+        
+        // Função para limpar logs de depuração
+        function clearDebugLogs() {
+            const debugContainer = document.getElementById('debugContainer');
+            debugContainer.innerHTML = '';
+        }
+        
+        // Inicialização e monitoramento da automação
+        function updateAutomationStatus(status, progress, message) {
+            // Atualiza a barra de progresso
+            const progressBar = document.getElementById('sicar_progress_bar');
+            if (progressBar) {
+                progressBar.style.width = progress + '%';
+                progressBar.setAttribute('aria-valuenow', progress);
+                progressBar.textContent = progress + '%';
+                
+                // Ajusta a cor baseada no status
+                progressBar.className = 'progress-bar progress-bar-striped';
+                if (status === 'running') {
+                    progressBar.classList.add('bg-warning');
+                } else if (status === 'completed') {
+                    progressBar.classList.add('bg-success');
+                } else if (status === 'error') {
+                    progressBar.classList.add('bg-danger');
+                } else {
+                    progressBar.classList.add('bg-info');
+                }
+            }
+            
+            // Atualiza a mensagem de status
+            const statusMessage = document.getElementById('sicar_status_message');
+            if (statusMessage) {
+                statusMessage.textContent = message || 'Status desconhecido';
+                
+                // Ajusta a classe de alerta baseada no status
+                statusMessage.className = 'alert mb-0';
+                if (status === 'running') {
+                    statusMessage.classList.add('alert-warning');
+                } else if (status === 'completed') {
+                    statusMessage.classList.add('alert-success');
+                } else if (status === 'error') {
+                    statusMessage.classList.add('alert-danger');
+                } else {
+                    statusMessage.classList.add('alert-info');
+                }
+            }
+            
+            // Log de informação para a depuração
+            addToLog('info', `Status da automação: ${status}, Progresso: ${progress}%, Mensagem: ${message}`);
+        }
+        
+        // Função para atualizar as informações da propriedade encontrada
+        function updatePropertyInfo(property) {
+            if (!property) return;
+            
+            // Mostra o card de informações
+            const infoCard = document.getElementById('propertyInfoCard');
+            if (infoCard) {
+                infoCard.style.display = 'block';
+            }
+            
+            // Atualiza os campos com os dados da propriedade
+            const fields = {
+                'property_state': property.estado || '-',
+                'property_city': property.municipio || '-',
+                'property_name': property.nome || '-',
+                'property_car': property.car || '-',
+                'property_area': property.area || '-'
+            };
+            
+            // Preenche cada campo
+            Object.keys(fields).forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.textContent = fields[id];
+                }
+            });
+            
+            // Log para depuração
+            addToLog('info', `Propriedade encontrada: ${property.nome}`);
+        }
+        
+        // Inicializa a página ocultando o overlay de carregamento
+        document.addEventListener('DOMContentLoaded', function() {
+            // Esconde o overlay de carregamento inicialmente e mostra a mensagem de "nenhuma busca"
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            const noSearchMessage = document.getElementById('noSearchMessage');
+            
+            if (loadingOverlay) {
+                loadingOverlay.style.display = 'none';
+            }
+            
+            if (noSearchMessage) {
+                noSearchMessage.style.display = 'flex';
+            }
+            
+            // Preenche as coordenadas de exemplo para facilitar testes
+            const latInput = document.getElementById('sicar_lat');
+            const lonInput = document.getElementById('sicar_lon');
+            
+            if (latInput) latInput.value = '-23.276064';
+            if (lonInput) lonInput.value = '-53.266292';
+        });
+        
+        // Funções para o SICAR
+        $(document).ready(function() {
+            console.log("jQuery carregado e pronto!");
+            
+            // Variáveis globais
+            let sicarpoll = null;
+            
+            // Ocultamos explicitamente o overlay de carregamento e mostramos a mensagem de que não há busca
+            $('#loadingOverlay').hide();
+            $('#noSearchMessage').show();
+            
+            // Inicializa o estado da interface
+            inicializarInterface();
+            
+            // Botão de buscar propriedade
+            $('#sicar_buscar').click(function() {
+                console.log("Botão buscar clicado");
+                const lat = $('#sicar_lat').val().trim();
+                const lon = $('#sicar_lon').val().trim();
+                
+                if (!lat || !lon) {
+                    mostrarAlerta('Informe as coordenadas (latitude e longitude)', 'warning');
+                    return;
+                }
+                
+                // Valida formato das coordenadas
+                if (isNaN(parseFloat(lat)) || isNaN(parseFloat(lon))) {
+                    mostrarAlerta('Coordenadas em formato inválido', 'danger');
+                    return;
+                }
+                
+                // Inicia o processo
+                iniciarBuscaSicar(lat, lon);
+            });
+            
+            // Função para inicializar a interface
+            function inicializarInterface() {
+                console.log("Inicializando interface...");
+                // Garante que overlay de carregamento esteja oculto ao iniciar
+                $('#loadingOverlay').hide();
+                $('#noSearchMessage').show();
+                
+                // Limpa informações de buscas anteriores
+                $('#sicar_info_container').hide();
+                $('#sicar_map_container').hide();
+                $('#sicar_diagnostics_container').hide();
+                
+                // Reseta barra de progresso
+                $('#sicar_progress_bar').css('width', '0%').attr('aria-valuenow', 0).text('0%');
+                
+                // Verifica status inicial
+                checkStatusSafely();
+                
+                // Preenche as coordenadas de exemplo para facilitar testes
+                $('#sicar_lat').val('-23.276064');
+                $('#sicar_lon').val('-53.266292');
+                
+                console.log("Interface inicializada com sucesso");
+            }
+            
+            // Função para iniciar a busca no SICAR
+            function iniciarBuscaSicar(lat, lon) {
+                console.log(`Iniciando busca para: ${lat}, ${lon}`);
+                
+                // Limpa informações anteriores
+                $('#sicar_info_container').hide();
+                $('#sicar_map_container').hide();
+                $('#sicar_diagnostics_container').hide();
+                
+                // Mostra o overlay de carregamento
+                $('#noSearchMessage').hide();
+                $('#loadingOverlay').show();
+                
+                // Reseta barra de progresso e status message
+                atualizarProgresso(5, 'bg-warning', 'Iniciando busca...');
+                
+                // Desabilita botão durante a execução
+                $('#sicar_buscar').prop('disabled', true);
+                
+                // Limpa logs e área de diagnóstico
+                $('#sicar_log').empty();
+                $('#diagnostics_accordion').empty();
+                
+                // Adiciona log inicial
+                addToLog('info', `Iniciando busca para coordenadas ${lat}, ${lon}`);
+                
+                // Inicia a chamada para o serviço de busca
+                fetch('/sicar/buscar', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        lat: lat,
+                        lon: lon
+                    })
+                })
+                .then(response => {
+                    console.log(`Resposta recebida: ${response.status} ${response.statusText}`);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log("Resposta da API:", data);
+                    if (data.error) {
+                        mostrarAlerta(`Erro ao iniciar busca: ${data.error}`, 'danger');
+                        // Libera interface
+                        $('#loadingOverlay').hide();
+                        $('#noSearchMessage').show();
+                        $('#sicar_buscar').prop('disabled', false);
+                        return;
+                    }
+                    
+                    // Se não houver erro, inicia o polling para verificar o status
+                    addToLog('info', 'Busca iniciada com sucesso, monitorando progresso...');
+                    startStatusPolling();
+                })
+                .catch(error => {
+                    console.error("Erro na API:", error);
+                    mostrarAlerta(`Erro ao comunicar com o servidor: ${error}`, 'danger');
+                    addToLog('error', `Erro de comunicação: ${error}`);
+                    
+                    // Libera interface
+                    $('#loadingOverlay').hide();
+                    $('#noSearchMessage').show();
+                    $('#sicar_buscar').prop('disabled', false);
+                });
+            }
+            
+            // Função para iniciar verificação periódica do status
+            function startStatusPolling() {
+                console.log("Iniciando polling de status");
+                // Cancela qualquer polling anterior
+                if (sicarpoll !== null) {
+                    clearInterval(sicarpoll);
+                }
+                
+                // Cria novo intervalo
+                sicarpoll = setInterval(checkStatusSafely, 2000);
+            }
+            
+            // Função segura para verificar status (com tratamento de erros)
+            function checkStatusSafely() {
+                try {
+                    checkStatus();
+                } catch (error) {
+                    console.error("Erro ao verificar status:", error);
+                    addToLog('error', `Erro ao verificar status: ${error.message}`);
+                }
+            }
+            
+            // Função para verificar o status do processamento
+            function checkStatus() {
+                fetch('/status')
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log("Status atualizado:", data);
+                        
+                        // Se temos um status, atualiza a interface
+                        if (data) {
+                            // Atualiza barra de progresso
+                            if (data.progress !== undefined) {
+                                let statusClass = 'bg-info';
+                                if (data.status === 'running') statusClass = 'bg-warning';
+                                else if (data.status === 'completed') statusClass = 'bg-success';
+                                else if (data.status === 'error') statusClass = 'bg-danger';
+                                
+                                // Garante que a mensagem de status seja exibida
+                                let mensagem = data.message || 'Processando...';
+                                atualizarProgresso(data.progress, statusClass, mensagem);
+                                
+                                // Garante que o overlay de carregamento esteja visível quando em execução
+                                if (data.status === 'running') {
+                                    $('#loadingOverlay').show();
+                                    $('#noSearchMessage').hide();
+                                } 
+                                // Se terminou com erro, mostra mensagem
+                                else if (data.status === 'error') {
+                                    $('#loadingOverlay').hide();
+                                    $('#noSearchMessage').show();
+                                    $('#sicar_buscar').prop('disabled', false);
+                                }
+                            }
+                            
+                            // Adiciona logs novos
+                            if (data.logs && data.logs.length > 0) {
+                                data.logs.forEach(log => {
+                                    addToLog(log.level || 'info', log.message);
+                                });
+                            }
+                            
+                            // Verifica diagnósticos
+                            if (data.diagnostics) {
+                                updateDiagnostics(data.diagnostics);
+                                $('#sicar_diagnostics_container').show();
+                            }
+                            
+                            // Processa resultados quando finalizado
+                            if (data.status === 'completed' && data.result) {
+                                handleResults(data.result);
+                                if (sicarpoll !== null) {
+                                    clearInterval(sicarpoll);
+                                    sicarpoll = null;
+                                }
+                                return;
+                            }
+                            
+                            // Processa erros
+                            if (data.status === 'error') {
+                                addToLog('error', `Erro na busca: ${data.error || 'Erro desconhecido'}`);
+                                mostrarAlerta(`Erro na busca: ${data.error || 'Erro desconhecido'}`, 'danger');
+                                $('#loadingOverlay').hide();
+                                $('#noSearchMessage').show();
+                                $('#sicar_buscar').prop('disabled', false);
+                                
+                                if (sicarpoll !== null) {
+                                    clearInterval(sicarpoll);
+                                    sicarpoll = null;
+                                }
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Erro ao verificar status:", error);
+                        addToLog('error', `Erro ao verificar status: ${error}`);
+                    });
+            }
+            
+            // Funções utilitárias
+            function mostrarAlerta(mensagem, tipo) {
+                const alertPlaceholder = document.getElementById('alert-placeholder');
+                if (!alertPlaceholder) return;
+                
+                const wrapper = document.createElement('div');
+                wrapper.innerHTML = `
+                    <div class="alert alert-${tipo} alert-dismissible fade show" role="alert">
+                        ${mensagem}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                `;
+                
+                alertPlaceholder.appendChild(wrapper);
+                
+                // Auto-remover após alguns segundos
+                setTimeout(() => {
+                    const alert = wrapper.querySelector('.alert');
+                    if (alert) {
+                        alert.classList.remove('show');
+                        setTimeout(() => wrapper.remove(), 500);
+                    }
+                }, 5000);
+            }
+            
+            // Funções para adicionar ao log
+            function addToLog(level, message) {
+                const logContainer = document.getElementById('sicar_log');
+                if (!logContainer) return;
+                
+                const row = document.createElement('div');
+                row.className = 'log-entry';
+                
+                // Adiciona timestamp
+                const now = new Date();
+                const timestamp = now.toLocaleTimeString();
+                
+                // Formata baseado no nível
+                let levelClass = '';
+                switch(level) {
+                    case 'error': levelClass = 'text-danger'; break;
+                    case 'warning': levelClass = 'text-warning'; break;
+                    case 'success': levelClass = 'text-success'; break;
+                    case 'info': 
+                    default: levelClass = 'text-info';
+                }
+                
+                row.innerHTML = `<span class="text-secondary">[${timestamp}]</span> <span class="${levelClass}">${message}</span>`;
+                logContainer.appendChild(row);
+                
+                // Rola para o fim para mostrar a entrada mais recente
+                logContainer.scrollTop = logContainer.scrollHeight;
+            }
+            
+            // Função para atualizar a barra de progresso
+            function atualizarProgresso(porcentagem, classe, mensagem) {
+                const progressBar = document.getElementById('sicar_progress_bar');
+                const statusMessage = document.getElementById('sicar_status_message');
+                
+                if (progressBar) {
+                    progressBar.style.width = porcentagem + '%';
+                    progressBar.setAttribute('aria-valuenow', porcentagem);
+                    progressBar.textContent = porcentagem + '%';
+                    
+                    // Atualiza a classe se fornecida
+                    if (classe) {
+                        progressBar.className = 'progress-bar progress-bar-striped';
+                        progressBar.classList.add(classe);
+                    }
+                }
+                
+                if (statusMessage && mensagem) {
+                    statusMessage.textContent = mensagem;
+                    
+                    // Ajusta a classe do alerta com base na classe da barra
+                    if (classe) {
+                        statusMessage.className = 'alert mb-0';
+                        if (classe === 'bg-success') {
+                            statusMessage.classList.add('alert-success');
+                        } else if (classe === 'bg-warning') {
+                            statusMessage.classList.add('alert-warning');
+                        } else if (classe === 'bg-danger') {
+                            statusMessage.classList.add('alert-danger');
+                        } else {
+                            statusMessage.classList.add('alert-info');
+                        }
+                    }
+                }
+            }
+            
+            // Função auxiliar para atualizar os diagnósticos
+            function updateDiagnostics(diagnostics) {
+                const container = document.getElementById('diagnostics_accordion');
+                if (!container) return;
+                
+                // Limpa diagnósticos anteriores
+                container.innerHTML = '';
+                
+                // Organiza diagnósticos por categoria
+                const categories = {};
+                Object.keys(diagnostics).forEach(key => {
+                    const parts = key.split('_');
+                    const category = parts.length > 1 ? parts[0] : 'misc';
+                    
+                    if (!categories[category]) {
+                        categories[category] = [];
+                    }
+                    
+                    categories[category].push({
+                        key: key,
+                        ...diagnostics[key]
+                    });
+                });
+                
+                // Cria acordeões para cada categoria
+                let idx = 0;
+                Object.keys(categories).sort().forEach(category => {
+                    const items = categories[category];
+                    const categoryId = `cat-${category}-${idx}`;
+                    const headerId = `head-${category}-${idx}`;
+                    const collapseId = `collapse-${category}-${idx}`;
+                    
+                    // Conta sucessos e falhas
+                    const successes = items.filter(item => item.success).length;
+                    const failures = items.length - successes;
+                    
+                    // Determina a cor com base nos resultados
+                    let headerClass = 'bg-success';
+                    if (failures > 0) {
+                        headerClass = failures === items.length ? 'bg-danger' : 'bg-warning';
+                    }
+                    
+                    // Cria o item de acordeão
+                    const accordionItem = document.createElement('div');
+                    accordionItem.className = 'card mb-2';
+                    
+                    // Cria o cabeçalho
+                    accordionItem.innerHTML = `
+                        <div class="card-header ${headerClass} text-white" id="${headerId}">
+                            <h2 class="mb-0">
+                                <button class="btn btn-link text-white" type="button" data-bs-toggle="collapse" 
+                                        data-bs-target="#${collapseId}" aria-expanded="false" aria-controls="${collapseId}">
+                                    ${category.toUpperCase()}: ${successes}/${items.length} passos completos
+                                </button>
+                            </h2>
+                        </div>
+                        <div id="${collapseId}" class="collapse" aria-labelledby="${headerId}" data-parent="#diagnostics_accordion">
+                            <div class="card-body p-0">
+                                <ul class="list-group list-group-flush">
+                                    ${items.map(item => `
+                                        <li class="list-group-item ${item.success ? 'list-group-item-success' : 'list-group-item-danger'}">
+                                            <strong>${item.key}</strong>: ${item.message || (item.success ? 'Sucesso' : 'Falha')}
+                                        </li>
+                                    `).join('')}
+                                </ul>
+                            </div>
+                        </div>
+                    `;
+                    
+                    container.appendChild(accordionItem);
+                    idx++;
+                });
+            }
+            
+            // Função para processar os resultados da busca
+            function handleResults(result) {
+                console.log("Processando resultados:", result);
+                
+                // Atualiza a barra de progresso para 100%
+                atualizarProgresso(100, 'bg-success', 'Busca concluída com sucesso!');
+                
+                // Esconde o overlay de carregamento
+                $('#loadingOverlay').hide();
+                
+                // Reabilita o botão de busca
+                $('#sicar_buscar').prop('disabled', false);
+                
+                // Exibe informações da propriedade se disponíveis
+                if (result.property) {
+                    $('#sicar_info_container').show();
+                    updatePropertyInfo(result.property);
+                }
+                
+                // Exibe mapa se disponível
+                if (result.map_image) {
+                    $('#sicar_map_container').show();
+                    $('#sicar_map_image').attr('src', 'data:image/png;base64,' + result.map_image);
+                    
+                    // Adiciona log
+                    addToLog('success', 'Mapa da propriedade carregado com sucesso');
+                } else {
+                    addToLog('warning', 'Nenhum mapa disponível para exibição');
+                }
+                
+                // Exibe diagnósticos
+                if (result.diagnostics) {
+                    $('#sicar_diagnostics_container').show();
+                    updateDiagnostics(result.diagnostics);
+                }
+            }
+            
+            // Função para atualizar as informações da propriedade encontrada
+            function updatePropertyInfo(property) {
+                if (!property) return;
+                
+                // Mostra o card de informações
+                const infoCard = document.getElementById('propertyInfoCard');
+                if (infoCard) {
+                    infoCard.style.display = 'block';
+                }
+                
+                // Atualiza os campos com os dados da propriedade
+                const fields = {
+                    'property_state': property.estado || '-',
+                    'property_city': property.municipio || '-',
+                    'property_name': property.nome || '-',
+                    'property_car': property.car || '-',
+                    'property_area': property.area || '-'
+                };
+                
+                // Preenche cada campo
+                Object.keys(fields).forEach(id => {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        element.textContent = fields[id];
+                    }
+                });
+                
+                // Log para depuração
+                addToLog('info', `Propriedade encontrada: ${property.nome}`);
+            }
+        });
+        
+        // Inicialização e monitoramento da automação
+        function updateAutomationStatus(status, progress, message) {
+            // Atualiza a barra de progresso
+            const progressBar = document.getElementById('sicar_progress_bar');
+            if (progressBar) {
+                progressBar.style.width = progress + '%';
+                progressBar.setAttribute('aria-valuenow', progress);
+                progressBar.textContent = progress + '%';
+                
+                // Ajusta a cor baseada no status
+                progressBar.className = 'progress-bar progress-bar-striped';
+                if (status === 'running') {
+                    progressBar.classList.add('bg-warning');
+                } else if (status === 'completed') {
+                    progressBar.classList.add('bg-success');
+                } else if (status === 'error') {
+                    progressBar.classList.add('bg-danger');
+                } else {
+                    progressBar.classList.add('bg-info');
+                }
+            }
+            
+            // Atualiza a mensagem de status
+            const statusMessage = document.getElementById('sicar_status_message');
+            if (statusMessage) {
+                statusMessage.textContent = message || 'Status desconhecido';
+                
+                // Ajusta a classe de alerta baseada no status
+                statusMessage.className = 'alert mb-0';
+                if (status === 'running') {
+                    statusMessage.classList.add('alert-warning');
+                } else if (status === 'completed') {
+                    statusMessage.classList.add('alert-success');
+                } else if (status === 'error') {
+                    statusMessage.classList.add('alert-danger');
+                } else {
+                    statusMessage.classList.add('alert-info');
+                }
+            }
+            
+            // Log de informação para a depuração
+            addToLog('info', `Status da automação: ${status}, Progresso: ${progress}%, Mensagem: ${message}`);
+        }
+    </script>
+</body>
+</html>

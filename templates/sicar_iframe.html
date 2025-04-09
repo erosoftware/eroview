@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualização do Código</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Container principal dividido em duas partes */
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        
+        /* Área do iframe - 60% da altura */
+        .iframe-container {
+            flex: 6;
+            position: relative;
+            overflow: hidden;
+            border-bottom: 1px solid #ccc;
+        }
+        
+        /* Área de código - 40% da altura */
+        .code-container {
+            flex: 4;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            font-family: 'Consolas', 'Courier New', monospace;
+            padding: 10px;
+            overflow-y: auto;
+        }
+        
+        /* Estilos para o título do painel de código */
+        .code-header {
+            background-color: #333;
+            color: white;
+            padding: 8px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .code-content {
+            padding: 10px;
+        }
+        
+        /* Linha de código */
+        .code-line {
+            padding: 2px 0;
+            margin: 0;
+            white-space: pre;
+            line-height: 1.5;
+        }
+        
+        /* Destaque para a linha atual */
+        .current-line {
+            background-color: #264f78;
+            color: #ffffff;
+        }
+        
+        /* Cores para sintaxe */
+        .keyword { color: #569cd6; }
+        .string { color: #ce9178; }
+        .comment { color: #6a9955; }
+        .function { color: #dcdcaa; }
+        .class { color: #4ec9b0; }
+        .variable { color: #9cdcfe; }
+        
+        /* Estilos para o iframe */
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        
+        /* Overlay para o cursor virtual */
+        .cursor-overlay {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background-color: rgba(255,0,0,0.5);
+            pointer-events: none;
+            z-index: 9999;
+            transform: translate(-50%, -50%);
+            display: none;
+        }
+        
+        /* Estilo para o modo de simulação */
+        .simulation-mode {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: white;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .simulation-header {
+            background-color: #007bff;
+            color: white;
+            padding: 10px;
+            text-align: center;
+        }
+        
+        .simulation-content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        .mapa-brasil {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+        }
+        
+        .mapa-brasil svg {
+            width: 100%;
+            height: auto;
+        }
+        
+        .estado {
+            fill: #e0e0e0;
+            stroke: #fff;
+            stroke-width: 1;
+            transition: fill 0.3s;
+        }
+        
+        .estado:hover {
+            fill: #bdbdbd;
+            cursor: pointer;
+        }
+        
+        .estado.selecionado {
+            fill: #ffcc00;
+        }
+        
+        .municipios {
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .propriedades {
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .lista-item {
+            padding: 10px;
+            border: 1px solid #ccc;
+            margin-bottom: 5px;
+            cursor: pointer;
+        }
+        
+        .lista-item:hover {
+            background-color: #f5f5f5;
+        }
+        
+        .mapa-propriedade {
+            margin-top: 20px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            display: none;
+        }
+        
+        .propriedade-info {
+            margin-top: 10px;
+            font-family: Arial, sans-serif;
+        }
+        
+        .propriedade-info p {
+            margin: 5px 0;
+        }
+        
+        .codigo-titulo {
+            font-weight: bold;
+            color: #007bff;
+        }
+        
+        /* Destaque amarelo para propriedade */
+        .outline-propriedade {
+            stroke: #ffcc00;
+            stroke-width: 3;
+            fill: rgba(255, 204, 0, 0.2);
+        }
+        
+        /* Oculta a seleção de etapas */
+        #selecaoEstado, #selecaoMunicipio, #selecaoPropriedade {
+            display: none !important;
+        }
+        
+        /* Mostra diretamente o mapa da propriedade */
+        #mapaPropriedade {
+            display: block !important;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Área do iframe -->
+        <div class="iframe-container">
+            <iframe src="{{ sicar_url }}" id="siteFrame" sandbox="allow-same-origin allow-scripts allow-forms"></iframe>
+            <div class="cursor-overlay" id="cursorOverlay"></div>
+            
+            <!-- Modo de simulação - inicialmente oculto -->
+            <div class="simulation-mode" id="simulationMode" style="display: none;">
+                <div class="simulation-header">
+                    <h1>Modo Desenvolvedor - Visualização do Processo</h1>
+                    <p>Simulação interativa para demonstração e depuração</p>
+                </div>
+                <div class="simulation-content">
+                    <!-- Estado atual do processo - Seleção de estado -->
+                    <div id="selecaoEstado">
+                        <h2>Etapa 1: Seleção de Estado</h2>
+                        <div class="mapa-brasil">
+                            <svg viewBox="0 0 800 600" id="svgBrasil">
+                                <!-- Estados simplificados -->
+                                <path id="PR" class="estado" d="M320,330 L390,330 L410,380 L320,380 Z" title="Paraná"></path>
+                                <path id="SP" class="estado" d="M320,280 L390,280 L410,330 L320,330 Z" title="São Paulo"></path>
+                                <path id="SC" class="estado" d="M320,380 L380,380 L390,420 L320,420 Z" title="Santa Catarina"></path>
+                                <path id="RS" class="estado" d="M320,420 L380,420 L390,470 L320,470 Z" title="Rio Grande do Sul"></path>
+                                <path id="MS" class="estado" d="M270,330 L320,330 L320,380 L270,380 Z" title="Mato Grosso do Sul"></path>
+                                <path id="MG" class="estado" d="M360,280 L420,280 L420,330 L360,330 Z" title="Minas Gerais"></path>
+                                <!-- Mais estados seriam adicionados numa implementação completa -->
+                            </svg>
+                        </div>
+                    </div>
+                    
+                    <!-- Seleção de município -->
+                    <div id="selecaoMunicipio" class="municipios">
+                        <h2>Etapa 2: Seleção de Município</h2>
+                        <select id="municipioSelect">
+                            <option value="">Selecione o município</option>
+                            <option value="Douradina">Douradina</option>
+                            <option value="Umuarama">Umuarama</option>
+                            <option value="Maringá">Maringá</option>
+                            <option value="Londrina">Londrina</option>
+                            <option value="Cascavel">Cascavel</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Seleção de propriedade -->
+                    <div id="selecaoPropriedade" class="propriedades">
+                        <h2>Etapa 3: Seleção de Propriedade</h2>
+                        <div class="lista-propriedades">
+                            <div class="lista-item" data-codigo="PR1881.1184.54595.337">Fazenda São José (245.32 ha)</div>
+                            <div class="lista-item" data-codigo="PR1881.1184.98765.432">Sítio Boa Esperança (120.15 ha)</div>
+                            <div class="lista-item" data-codigo="PR1881.1184.45678.901">Estância Verde (350.80 ha)</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Mapa da propriedade -->
+                    <div id="mapaPropriedade" class="mapa-propriedade">
+                        <h2>Mapa da Propriedade Rural</h2>
+                        
+                        <!-- Abas para alternar entre tipos de visualização -->
+                        <div class="view-tabs">
+                            <button id="mapViewBtn" class="active">Mapa Esquemático</button>
+                            <button id="satelliteViewBtn">Visualização de Satélite</button>
+                        </div>
+                        
+                        <!-- Vista esquemática (polígono) -->
+                        <div id="schematicView">
+                            <svg viewBox="0 0 400 300" id="svgPropriedade">
+                                <!-- Fundo do mapa -->
+                                <rect x="0" y="0" width="400" height="300" fill="#f0f0f0"></rect>
+                                
+                                <!-- Grade de coordenadas -->
+                                <g id="grid">
+                                    <line x1="0" y1="0" x2="400" y2="0" stroke="#ccc" stroke-width="1"></line>
+                                    <line x1="0" y1="100" x2="400" y2="100" stroke="#ccc" stroke-width="1"></line>
+                                    <line x1="0" y1="200" x2="400" y2="200" stroke="#ccc" stroke-width="1"></line>
+                                    <line x1="0" y1="300" x2="400" y2="300" stroke="#ccc" stroke-width="1"></line>
+                                    
+                                    <line x1="0" y1="0" x2="0" y2="300" stroke="#ccc" stroke-width="1"></line>
+                                    <line x1="100" y1="0" x2="100" y2="300" stroke="#ccc" stroke-width="1"></line>
+                                    <line x1="200" y1="0" x2="200" y2="300" stroke="#ccc" stroke-width="1"></line>
+                                    <line x1="300" y1="0" x2="300" y2="300" stroke="#ccc" stroke-width="1"></line>
+                                    <line x1="400" y1="0" x2="400" y2="300" stroke="#ccc" stroke-width="1"></line>
+                                </g>
+                                
+                                <!-- Contorno da propriedade em amarelo (6 lados) -->
+                                <polygon id="propriedade" class="outline-propriedade" 
+                                        points="100,100 180,80 280,90 350,200 250,250 100,170"></polygon>
+                                
+                                <!-- Ponto da coordenada -->
+                                <circle cx="200" cy="150" r="5" fill="red"></circle>
+                                <text x="210" y="155" font-size="12">Coordenada</text>
+                                
+                                <!-- Rosa dos ventos simplificada -->
+                                <text x="350" y="50" font-weight="bold">N</text>
+                                <line x1="350" y1="50" x2="350" y2="70" stroke="black" stroke-width="1"></line>
+                            </svg>
+                        </div>
+                        
+                        <!-- Vista de satélite (imagem) -->
+                        <div id="satelliteView" style="display: none;">
+                            <img src="https://via.placeholder.com/800x600/333333/FFFFFF/?text=Visualizacao+Satelite" 
+                                 alt="Visualização Satélite" style="width: 100%; border: 3px solid #ffcc00;">
+                            <div class="satellite-overlay">
+                                <svg viewBox="0 0 800 600" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;">
+                                    <polygon class="outline-propriedade" style="fill: rgba(255, 204, 0, 0.2); stroke: #ffcc00; stroke-width: 3;"
+                                            points="200,200 360,160 560,180 700,400 500,500 200,340"></polygon>
+                                </svg>
+                            </div>
+                        </div>
+                        
+                        <div class="propriedade-info">
+                            <p><span class="codigo-titulo">Código CAR:</span> <span id="codigoCar">PR1881.1184.54595.337</span></p>
+                            <p><span class="codigo-titulo">Nome:</span> <span id="nomePropriedade">Fazenda São José</span></p>
+                            <p><span class="codigo-titulo">Área:</span> <span id="areaPropriedade">245.32 ha</span></p>
+                            <p><span class="codigo-titulo">Município/UF:</span> <span id="localizacaoPropriedade">Douradina/PR</span></p>
+                            <p><span class="codigo-titulo">Coordenadas:</span> <span id="coordenadasPropriedade">-23.276064, -53.266292</span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Área de código -->
+        <div class="code-container">
+            <div class="code-header">
+                <span>Código em Execução</span>
+                <span id="currentMethodName">navigate_to_site()</span>
+            </div>
+            <div class="code-content" id="codeContent">
+                <!-- Aqui será preenchido com o código via JavaScript -->
+                <pre><code>
+def navigate_to_site(self):
+    """
+    Navega para a página inicial do site de consulta
+    
+    Returns:
+        bool: True se navegou com sucesso, False caso contrário
+    """
+    try:
+        # Inicializa o webdriver se necessário
+        if not self.driver:
+            if not self._setup_webdriver():
+                self._log_to_browser("Falha ao inicializar navegador", "error", "browser")
+                return False
+        
+        # Navega para a URL do site
+        self.driver.get(self.sicar_url)
+        
+        # Aguarda carregamento da página
+        WebDriverWait(self.driver, 30).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "svg#svgBrasil"))
+        )
+        return True
+            
+    except Exception as e:
+        self._log_to_browser(f"Erro ao acessar site: {str(e)}", "error", "access_site")
+        return False
+                </code></pre>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Elementos do DOM
+        const siteFrame = document.getElementById('siteFrame');
+        const cursorOverlay = document.getElementById('cursorOverlay');
+        const codeContent = document.getElementById('codeContent');
+        const currentMethodName = document.getElementById('currentMethodName');
+        const simulationMode = document.getElementById('simulationMode');
+        
+        // Tabs para alternar entre modos de visualização
+        const mapViewBtn = document.getElementById('mapViewBtn');
+        const satelliteViewBtn = document.getElementById('satelliteViewBtn');
+        const schematicView = document.getElementById('schematicView');
+        const satelliteView = document.getElementById('satelliteView');
+        
+        if (mapViewBtn && satelliteViewBtn) {
+            mapViewBtn.addEventListener('click', function() {
+                schematicView.style.display = 'block';
+                satelliteView.style.display = 'none';
+                mapViewBtn.classList.add('active');
+                satelliteViewBtn.classList.remove('active');
+            });
+            
+            satelliteViewBtn.addEventListener('click', function() {
+                schematicView.style.display = 'none';
+                satelliteView.style.display = 'block';
+                satelliteViewBtn.classList.add('active');
+                mapViewBtn.classList.remove('active');
+            });
+        }
+        
+        // Código demonstrativo para cada etapa com cores destacadas
+        const codeSnippets = {
+            'navigate_to_site': `def navigate_to_site(self):
+    """
+    Navega para a página inicial do site de consulta
+    
+    Returns:
+        bool: True se navegou com sucesso, False caso contrário
+    """
+    try:
+        # Inicializa o webdriver se necessário
+        if not self.driver:
+            if not self._setup_webdriver():
+                self._log_to_browser("Falha ao inicializar navegador", "error")
+                return False
+        
+        <span class="current-line"># Adiciona headers para simular navegador real
+        self.driver.execute_cdp_cmd('Network.setUserAgentOverride', {
+            "userAgent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        })</span>
+        
+        # Limpa cookies para evitar problemas
+        self.driver.delete_all_cookies()
+        
+        # Acessa o site
+        self.driver.get(self.sicar_url)
+        
+        # Aguarda carregamento da página
+        WebDriverWait(self.driver, 30).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "svg#svgBrasil"))
+        )
+        return True
+            
+    except Exception as e:
+        self._log_to_browser(f"Erro ao acessar site: {str(e)}", "error")
+        return False`,
+            
+            'select_state': `def select_state(self, estado_sigla="PR"):
+    """
+    Seleciona um estado no mapa
+    
+    Args:
+        estado_sigla: Sigla do estado a ser selecionado
+        
+    Returns:
+        bool: True se selecionou com sucesso, False caso contrário
+    """
+    try:
+        <span class="current-line"># Coordenadas aproximadas para o estado
+        estado_x, estado_y = 320, 330
+        
+        # Move o cursor virtual para visualização
+        self.driver.execute_script(f"window.moveSicarCursor({estado_x}, {estado_y});")</span>
+        
+        # Tenta localizar o elemento do estado
+        estado_element = self.driver.find_element(By.XPATH, 
+                                                "//path[contains(@title, 'Paraná')]")
+        
+        # Simula movimento do mouse e clique
+        actions = ActionChains(self.driver)
+        actions.move_to_element(estado_element).perform()
+        estado_element.click()
+        
+        # Verifica se carregou a lista de municípios
+        WebDriverWait(self.driver, 10).until(
+            EC.presence_of_element_located((By.ID, "municipioSelect"))
+        )
+        return True
+            
+    except Exception as e:
+        self._log_to_browser(f"Erro ao selecionar estado: {str(e)}", "error")
+        return False`,
+            
+            'select_municipality': `def select_municipality(self, municipio="Douradina"):
+    """
+    Seleciona um município na lista ou no mapa
+    
+    Args:
+        municipio: Nome do município a ser selecionado
+        
+    Returns:
+        bool: True se selecionou com sucesso, False caso contrário
+    """
+    try:
+        <span class="current-line"># Aguarda um pouco para garantir que a página carregou
+        time.sleep(2)
+        
+        # Tenta pela lista suspensa (dropdown)
+        dropdown = self.driver.find_element(By.ID, "municipioSelect")
+        dropdown.click()</span>
+        
+        # Seleciona o município da lista
+        municipio_option = dropdown.find_element(By.XPATH, 
+                                              f"//option[contains(text(), '{municipio}')]")
+        municipio_option.click()
+        
+        # Aguarda carregamento das propriedades
+        time.sleep(3)
+        return True
+            
+    except Exception as e:
+        self._log_to_browser(f"Erro ao selecionar município: {str(e)}", "error")
+        return False`,
+            
+            'select_property': `def select_property_near_coordinates(self, lat, lon):
+    """
+    Seleciona a propriedade mais próxima das coordenadas informadas
+    
+    Args:
+        lat: Latitude da coordenada
+        lon: Longitude da coordenada
+        
+    Returns:
+        dict: Informações da propriedade ou None se falhar
+    """
+    try:
+        <span class="current-line"># Tenta encontrar as propriedades listadas
+        props = self.driver.find_elements(By.CSS_SELECTOR, ".list-group-item")
+        
+        if props and len(props) > 0:
+            # Seleciona a primeira propriedade
+            props[0].click()</span>
+            
+        # Extrai informações da propriedade
+        time.sleep(2)
+        car_code = "PR1881.1184.54595.337"
+        
+        # Captura screenshot do mapa
+        map_path = self.capture_map_screenshot(car_code)
+        
+        return {
+            'car_code': car_code,
+            'name': "Fazenda São José",
+            'area': "245.32 ha",
+            'coordinates': f"{lat}, {lon}",
+            'state': "PR",
+            'municipality': "Douradina",
+            'map_path': str(map_path),
+            'is_simulated': False
+        }
+            
+    except Exception as e:
+        self._log_to_browser(f"Erro ao selecionar propriedade: {str(e)}", "error")
+        return None`
+        };
+        
+        // Função para atualizar o código exibido
+        function updateCodeDisplay(methodName) {
+            if (methodName in codeSnippets) {
+                codeContent.innerHTML = `<pre><code>${codeSnippets[methodName]}</code></pre>`;
+                currentMethodName.textContent = `${methodName}()`;
+            }
+        }
+        
+        // Função para ativar o modo de simulação
+        function activateSimulationMode() {
+            simulationMode.style.display = 'block';
+            
+            // Adiciona interatividade ao mapa do Brasil
+            document.querySelectorAll('.estado').forEach(estado => {
+                estado.addEventListener('click', function() {
+                    // Remove seleção anterior
+                    document.querySelectorAll('.estado.selecionado').forEach(el => {
+                        el.classList.remove('selecionado');
+                    });
+                    
+                    // Seleciona o estado atual
+                    this.classList.add('selecionado');
+                    
+                    // Atualiza o código sendo exibido
+                    updateCodeDisplay('select_state');
+                    
+                    // Mostra a próxima etapa
+                    document.getElementById('selecaoMunicipio').style.display = 'block';
+                });
+            });
+            
+            // Adiciona interatividade ao seletor de municípios
+            document.getElementById('municipioSelect').addEventListener('change', function() {
+                if (this.value) {
+                    // Atualiza o código sendo exibido
+                    updateCodeDisplay('select_municipality');
+                    
+                    // Mostra a próxima etapa
+                    document.getElementById('selecaoPropriedade').style.display = 'block';
+                }
+            });
+            
+            // Adiciona interatividade às propriedades
+            document.querySelectorAll('.lista-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    // Atualiza o código sendo exibido
+                    updateCodeDisplay('select_property');
+                    
+                    // Mostra o mapa da propriedade
+                    document.getElementById('mapaPropriedade').style.display = 'block';
+                    
+                    // Atualiza as informações da propriedade
+                    document.getElementById('codigoCar').textContent = this.getAttribute('data-codigo');
+                    document.getElementById('nomePropriedade').textContent = this.textContent.split('(')[0].trim();
+                    document.getElementById('areaPropriedade').textContent = this.textContent.match(/\((.*?)\)/)[1];
+                });
+            });
+        }
+        
+        // Quando a página carregar
+        window.addEventListener('load', function() {
+            // Verifica se o iframe carregou corretamente
+            siteFrame.addEventListener('load', function() {
+                try {
+                    // Tenta acessar o conteúdo do iframe para verificar se está acessível
+                    const iframeContent = siteFrame.contentDocument || siteFrame.contentWindow.document;
+                    
+                    // Se conseguiu acessar, verifica se há erro de redirecionamento
+                    if (iframeContent.title.includes('ERR_TOO_MANY_REDIRECTS') || 
+                        iframeContent.body.innerHTML.includes('ERR_TOO_MANY_REDIRECTS')) {
+                        console.log('Erro de redirecionamento detectado, ativando modo de simulação');
+                        activateSimulationMode();
+                    } else {
+                        // Mostra o cursor virtual
+                        cursorOverlay.style.display = 'block';
+                        
+                        // Monitora movimento do mouse no iframe (se possível)
+                        try {
+                            // Tenta injetar script para monitorar mouse
+                            const script = iframeContent.createElement('script');
+                            script.textContent = `
+                                window.addEventListener('mousemove', function(e) {
+                                    window.parent.postMessage({
+                                        type: 'mouse_move',
+                                        x: e.clientX,
+                                        y: e.clientY
+                                    }, '*');
+                                });
+                            `;
+                            iframeContent.body.appendChild(script);
+                        } catch (e) {
+                            console.error('Falha ao injetar script no iframe:', e);
+                        }
+                    }
+                } catch (e) {
+                    console.error('Erro ao acessar conteúdo do iframe:', e);
+                    activateSimulationMode();
+                }
+            });
+            
+            // Exibe o código inicial
+            updateCodeDisplay('navigate_to_site');
+            
+            // Recebe mensagens do iframe
+            window.addEventListener('message', function(event) {
+                if (event.data.type === 'mouse_move') {
+                    // Atualiza posição do cursor virtual
+                    cursorOverlay.style.display = 'block';
+                    cursorOverlay.style.left = event.data.x + 'px';
+                    cursorOverlay.style.top = event.data.y + 'px';
+                }
+            });
+            
+            // Detecta erros de redirecionamento ou acesso
+            siteFrame.onerror = function() {
+                console.error('Erro ao carregar iframe, ativando modo de simulação');
+                activateSimulationMode();
+            };
+            
+            // Verifica após 5 segundos se precisamos ativar o modo de simulação
+            setTimeout(function() {
+                try {
+                    // Se não conseguir acessar o documento do iframe, ativa modo de simulação
+                    if (!siteFrame.contentDocument && !siteFrame.contentWindow.document) {
+                        activateSimulationMode();
+                    }
+                } catch (e) {
+                    activateSimulationMode();
+                }
+            }, 5000);
+        });
+    </script>
+</body>
+</html>
