@@ -298,6 +298,14 @@
             text-align: center;
             padding: 20px;
         }
+        
+        .empty-state-box {
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 20px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -449,7 +457,7 @@
                     </div>
                 </div>
 
-                <div id="sicarView" class="border bg-light overflow-hidden" style="height: 400px; position: relative;">
+                <div id="sicarView" class="border bg-light overflow-hidden" style="height: 600px; position: relative;">
                     <!-- Overlay de carregamento - inicialmente oculto -->
                     <div id="loadingOverlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(255, 255, 255, 0.8); z-index: 1000; display: none;">
                         <div class="text-center">
@@ -462,9 +470,9 @@
                     </div>
                     
                     <!-- Mensagem quando não há busca - inicialmente visível -->
-                    <div id="noSearchMessage" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(245, 245, 245, 0.9); z-index: 999; display: flex; justify-content: center; align-items: center; flex-direction: column; text-align: center; padding: 20px;">
+                    <div id="noSearchMessage" class="empty-state-box" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(245, 245, 245, 0.9); z-index: 999; display: flex; justify-content: center; align-items: center; flex-direction: column; text-align: center; padding: 20px;">
                         <i class="fas fa-search fa-3x text-muted mb-3"></i>
-                        <h4>Faça uma busca para visualizar o mapa</h4>
+                        <h4>Visualizador de Mapa SICAR</h4>
                         <p class="text-muted">Insira as coordenadas e clique em "Buscar" para iniciar</p>
                     </div>
                     
@@ -651,58 +659,117 @@
         
         // Função para verificar o status da busca
         function checkSearchStatus() {
-            fetch('/status')
-                .then(response => response.json())
-                .then(data => {
-                    // Atualiza progresso e status
-                    updateProgress(data.status, data.progress);
-                    
-                    // Atualiza etapas
-                    if (data.steps) {
-                        updateSteps(data.steps);
-                    }
-                    
-                    // Atualiza logs
-                    if (data.logs && data.logs.length > 0) {
-                        updateLogs(data.logs);
-                    }
-                    
-                    // Se busca concluída ou falhou, limpa o intervalo
-                    if (data.status === 'success' || data.status === 'error') {
-                        clearInterval(statusCheckInterval);
-                        
-                        // Exibe mensagem de resultado
-                        if (data.status === 'success' && data.result) {
-                            showSearchResult(data.result);
-                        } else if (data.status === 'error') {
-                            showErrorMessage(data.error);
+            try {
+                fetch('/status')
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Erro na resposta: ' + response.status);
                         }
-                        
-                        // Habilita o botão de busca novamente
-                        document.getElementById('searchButton').disabled = false;
-                        document.getElementById('cancelButton').disabled = true;
-                    }
-                })
-                .catch(error => {
-                    console.error('Erro ao verificar status:', error);
-                });
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data) {
+                            // Atualiza a mensagem de status
+                            if (data.message) {
+                                document.getElementById('statusMessage').innerText = data.message;
+                            }
+                            
+                            // Atualiza a barra de progresso
+                            if (data.progress !== undefined) {
+                                const progressBar = document.getElementById('progressBar');
+                                progressBar.style.width = data.progress + '%';
+                                progressBar.setAttribute('aria-valuenow', data.progress);
+                            }
+                            
+                            // Verifica se a busca foi concluída
+                            if (data.status === 'completed') {
+                                clearInterval(sicarpoll);
+                                document.getElementById('statusContainer').classList.add('text-success');
+                                document.getElementById('statusContainer').classList.remove('text-warning');
+                                // Habilita os botões de download
+                                habilitarDownloads(true);
+                            } else if (data.status === 'error') {
+                                clearInterval(sicarpoll);
+                                document.getElementById('statusContainer').classList.add('text-danger');
+                                document.getElementById('statusContainer').classList.remove('text-warning');
+                                // Desabilita os botões de download
+                                habilitarDownloads(false);
+                            }
+                            
+                            // Atualiza os logs
+                            if (data.logs && Array.isArray(data.logs)) {
+                                atualizarLogs(data.logs);
+                            }
+                            
+                            // Atualiza as etapas
+                            if (data.steps && Array.isArray(data.steps)) {
+                                atualizarEtapas(data.steps);
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Erro ao verificar status:', error);
+                    });
+            } catch (error) {
+                console.error('Erro ao verificar status:', error);
+            }
         }
         
         // Função para atualizar logs
-        function updateLogs(logs) {
-            const logContainer = document.getElementById('logContainer');
-            let logHtml = '';
+        function atualizarLogs(logs) {
+            const logsContainer = document.getElementById('logContainer');
+            if (!logsContainer) {
+                console.error('Elemento de logs não encontrado (logContainer)');
+                return;
+            }
             
-            logs.slice(-25).forEach(log => {
-                const logClass = `log-${log.level}`;
-                logHtml += `<div class="log-entry ${logClass}">
-                    <span class="log-time">${log.timestamp}</span>
-                    <span class="log-message">${log.message}</span>
-                </div>`;
-            });
+            // Limpa logs antigos se tiver muitos (mantém apenas os últimos 100)
+            if (logsContainer.children.length > 100) {
+                while (logsContainer.children.length > 50) {
+                    logsContainer.removeChild(logsContainer.firstChild);
+                }
+            }
             
-            logContainer.innerHTML = logHtml;
-            logContainer.scrollTop = logContainer.scrollHeight;
+            // Adiciona novos logs de forma mais confiável
+            if (logs && logs.length > 0) {
+                // Adiciona último log no console para debug
+                console.log("Processando log:", logs[logs.length-1]);
+                
+                logs.forEach(log => {
+                    // Verifica se o log já existe para evitar duplicação
+                    const logId = log.timestamp ? log.timestamp.replace(/[^a-zA-Z0-9]/g, '') : Date.now().toString();
+                    const existingLog = document.getElementById('log-' + logId);
+                    
+                    if (!existingLog) {
+                        const logElement = document.createElement('div');
+                        logElement.id = 'log-' + logId;
+                        logElement.className = 'log-entry mb-1';
+                        
+                        // Define a classe com base no nível do log
+                        let logClass = 'text-muted';
+                        if (log.level === 'error') logClass = 'text-danger';
+                        if (log.level === 'warning') logClass = 'text-warning';
+                        if (log.level === 'success') logClass = 'text-success';
+                        if (log.level === 'info') logClass = 'text-primary';
+                        
+                        // Formata a hora para exibição
+                        let timestamp = '';
+                        try {
+                            timestamp = log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
+                        } catch (e) {
+                            timestamp = new Date().toLocaleTimeString();
+                        }
+                        
+                        logElement.innerHTML = `<small class="${logClass}">${timestamp} - ${log.message || 'Evento do sistema'}</small>`;
+                        logsContainer.appendChild(logElement);
+                    }
+                });
+                
+                // Scroll para o final do container de logs
+                logsContainer.scrollTop = logsContainer.scrollHeight;
+            } else {
+                console.warn('Nenhum log para processar ou formato inválido');
+            }
         }
         
         // Função para exibir o resultado da busca
@@ -791,8 +858,8 @@
             console.log("startSearch chamada");
             
             // Limpa busca anterior
-            if (statusCheckInterval) {
-                clearInterval(statusCheckInterval);
+            if (typeof sicarpoll !== 'undefined' && sicarpoll) {
+                clearInterval(sicarpoll);
             }
             
             // Obtém coordenadas
@@ -823,62 +890,65 @@
                 resultContainer.innerHTML = '';
             }
             
-            // Desabilita botão de busca e habilita cancelamento
-            const searchButton = document.getElementById('searchButton');
-            const cancelButton = document.getElementById('cancelButton');
+            // Atualiza UI para modo de busca
+            document.getElementById('searchButton').disabled = true;
+            document.getElementById('cancelButton').disabled = false;
             
-            if (searchButton) searchButton.disabled = true;
-            if (cancelButton) cancelButton.disabled = false;
+            // Exibe overlay de carregamento
+            const sicarView = document.getElementById('sicarView');
+            if (sicarView) {
+                document.getElementById('noSearchMessage').style.display = 'none';
+                document.getElementById('loadingOverlay').style.display = 'flex';
+                document.getElementById('mapView').style.display = 'none';
+            }
             
-            // Reseta progresso
-            updateProgress('running', 0);
-            progressReportCount = 0;
+            // Reinicia o status da automação
+            updateAutomationStatus('running', 0, 'Iniciando busca...');
             
-            try {
-                // Envia requisição para iniciar busca
-                fetch('/iniciar', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        lat: lat,
-                        lon: lon
-                    })
+            // Define a função de verificação periódica
+            sicarpoll = setInterval(checkStatusSafely, 2000);
+            
+            // Faz a requisição para iniciar a busca
+            fetch('/iniciar', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    lat: lat,
+                    lon: lon
                 })
-                .then(response => {
-                    console.log("Resposta recebida:", response);
-                    return response.json();
-                })
-                .then(data => {
-                    console.log("Dados recebidos:", data);
-                    if (data.status === 'error') {
-                        showErrorMessage({message: data.message});
-                        
-                        // Reativa botão de busca
-                        document.getElementById('searchButton').disabled = false;
-                        document.getElementById('cancelButton').disabled = true;
-                    } else {
-                        // Inicia verificação de status
-                        statusCheckInterval = setInterval(checkSearchStatus, 1000);
-                    }
-                })
-                .catch(error => {
-                    console.error('Erro ao iniciar busca:', error);
-                    showErrorMessage({message: 'Falha ao iniciar busca. Por favor, tente novamente.'});
-                    
-                    // Reativa botão de busca
-                    document.getElementById('searchButton').disabled = false;
-                    document.getElementById('cancelButton').disabled = true;
-                });
-            } catch (error) {
-                console.error('Erro ao iniciar busca:', error);
-                showErrorMessage({message: 'Falha ao iniciar busca. Por favor, tente novamente.'});
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Erro na requisição: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Resposta da busca:', data);
+                logDebug(`Busca iniciada com sucesso. ID: ${data.search_id || 'n/a'}`, 'info');
                 
-                // Reativa botão de busca
+                // Já inicia uma verificação imediata
+                checkStatusSafely();
+            })
+            .catch(error => {
+                console.error('Erro ao iniciar busca:', error);
+                logDebug(`Erro ao iniciar busca: ${error}`, 'error');
+                clearInterval(sicarpoll);
+                
+                // Restaura UI
                 document.getElementById('searchButton').disabled = false;
                 document.getElementById('cancelButton').disabled = true;
-            }
+                
+                if (sicarView) {
+                    document.getElementById('loadingOverlay').style.display = 'none';
+                    document.getElementById('noSearchMessage').style.display = 'flex';
+                }
+                
+                updateAutomationStatus('error', 0, `Erro: ${error.message}`);
+                showErrorMessage(error);
+            });
         }
         
         // Função para cancelar busca
@@ -897,8 +967,8 @@
                     document.getElementById('cancelButton').disabled = true;
                     
                     // Limpa intervalo de verificação
-                    if (statusCheckInterval) {
-                        clearInterval(statusCheckInterval);
+                    if (sicarpoll) {
+                        clearInterval(sicarpoll);
                     }
                 })
                 .catch(error => {
@@ -967,22 +1037,76 @@
         // Função para verificar status com proteção contra erros
         function checkStatusSafely() {
             try {
+                console.log("Verificando status...");
                 checkSearchStatus();
             } catch (error) {
-                logDebug(`Erro ao verificar status: ${error.message}`, 'error');
+                console.error("Erro ao verificar status:", error);
+                logDebug(`Erro ao verificar status: ${error}`, 'error');
             }
         }
         
         // Função para limpar logs
         function clearLogs() {
-            const logContainer = document.getElementById('logContainer');
-            logContainer.innerHTML = '';
+            const logsContainer = document.getElementById('logContainer');
+            logsContainer.innerHTML = '';
         }
         
         // Função para limpar logs de depuração
         function clearDebugLogs() {
             const debugContainer = document.getElementById('debugContainer');
             debugContainer.innerHTML = '';
+        }
+        
+        // Função para atualizar etapas
+        function atualizarEtapas(steps) {
+            const stepsContainer = document.getElementById('stepsContainer');
+            if (!stepsContainer) {
+                console.error('Elemento de etapas não encontrado (stepsContainer)');
+                return;
+            }
+            
+            // Log de debug
+            console.log("Etapas recebidas:", steps);
+            
+            // Limpa o container
+            stepsContainer.innerHTML = '';
+            
+            // Adiciona cada etapa
+            if (steps && steps.length > 0) {
+                steps.forEach(step => {
+                    const stepElement = document.createElement('div');
+                    stepElement.className = 'step-item mb-2';
+                    
+                    // Define ícone baseado no status
+                    let statusIcon = '<i class="fas fa-circle text-secondary me-2"></i>';
+                    let statusClass = 'text-muted';
+                    
+                    if (step.status === 'running') {
+                        statusIcon = '<i class="fas fa-spinner fa-spin text-primary me-2"></i>';
+                        statusClass = 'text-primary';
+                    } else if (step.status === 'success') {
+                        statusIcon = '<i class="fas fa-check-circle text-success me-2"></i>';
+                        statusClass = 'text-success';
+                    } else if (step.status === 'error') {
+                        statusIcon = '<i class="fas fa-times-circle text-danger me-2"></i>';
+                        statusClass = 'text-danger';
+                    }
+                    
+                    stepElement.innerHTML = `
+                        <div class="${statusClass}">
+                            ${statusIcon} ${step.id || ''} ${step.message || ''}
+                        </div>
+                    `;
+                    
+                    stepsContainer.appendChild(stepElement);
+                });
+            } else {
+                // Se não há etapas, adiciona uma mensagem
+                const noStepsElement = document.createElement('div');
+                noStepsElement.className = 'text-muted';
+                noStepsElement.innerHTML = '<small>Nenhuma etapa iniciada</small>';
+                stepsContainer.appendChild(noStepsElement);
+            }
         }
         
         // Inicialização e monitoramento da automação
@@ -1026,7 +1150,7 @@
             }
             
             // Log de informação para a depuração
-            addToLog('info', `Status da automação: ${status}, Progresso: ${progress}%, Mensagem: ${message}`);
+            logDebug(`Status da automação: ${status}, Progresso: ${progress}%, Mensagem: ${message}`, 'info');
         }
         
         // Função para atualizar as informações da propriedade encontrada
@@ -1057,7 +1181,7 @@
             });
             
             // Log para depuração
-            addToLog('info', `Propriedade encontrada: ${property.nome}`);
+            logDebug(`Propriedade encontrada: ${property.nome}`);
         }
         
         // Inicialização e monitoramento da automação
@@ -1101,7 +1225,7 @@
             }
             
             // Log de informação para a depuração
-            addToLog('info', `Status da automação: ${status}, Progresso: ${progress}%, Mensagem: ${message}`);
+            logDebug(`Status da automação: ${status}, Progresso: ${progress}%, Mensagem: ${message}`, 'info');
         }
     </script>
 </body>

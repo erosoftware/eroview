@@ -44,6 +44,25 @@ logging.getLogger('urllib3').setLevel(logging.WARNING)
 logging.getLogger('selenium').setLevel(logging.WARNING)
 
 logger = logging.getLogger('dev_sicar')
+logger.setLevel(logging.DEBUG)
+handler = logging.StreamHandler()
+handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+logger.addHandler(handler)
+
+# Estado global da aplicação
+app_state = {
+    'status': 'idle',
+    'progress': 0,
+    'message': 'Aguardando início da busca',
+    'started_at': None,
+    'finished_at': None,
+    'error': None,
+    'steps': [],
+    'logs': []
+}
+
+# Variável global para o robô SICAR
+sicar_robot = None
 
 # Define o diretório base
 BASE_DIR = Path(__file__).resolve().parent
@@ -71,32 +90,6 @@ app = Flask(
 
 # Inicialização da aplicação e estado
 app.config['TEMPLATES_AUTO_RELOAD'] = True
-
-# Configuração de logs
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger('dev_sicar')
-
-# Estado global da aplicação
-app_state = {
-    'status': 'idle',
-    'message': 'Pronto para iniciar',
-    'started_at': None,
-    'finished_at': None,
-    'progress': 0,
-    'robot': None,
-    'result': None,
-    'error': None,
-    'logs': [],
-    'steps': [],
-    # Importante: Flag para evitar buscas automáticas não solicitadas
-    'auto_search_disabled': True
-}
-
-# Cria objeto para os logs do navegador
-app.browser_logs = []
 
 # Configurações
 def get_config():
@@ -164,27 +157,51 @@ def get_status():
     """
     global app_state
     
-    # Formata o progresso para o frontend
-    progress = 0
-    if app_state['steps']:
-        total_steps = len(app_state['steps'])
-        completed_steps = sum(1 for step in app_state['steps'] if step['status'] in ['success', 'error'])
-        running_steps = sum(1 for step in app_state['steps'] if step['status'] == 'running')
-        
-        if total_steps > 0:
-            # Conta etapas completas como 100%, em andamento como 50%
-            progress = int((completed_steps * 100 + running_steps * 50) / total_steps)
+    # Garante valores padrão para todas as chaves necessárias
+    default_app_state = {
+        'status': 'idle',
+        'message': 'Aguardando início da busca',
+        'progress': 0,
+        'logs': [],
+        'steps': [],
+        'result': None,
+        'error': None,
+        'started_at': None,
+        'finished_at': None
+    }
     
+    # Garante que todas as chaves existam
+    for key, default_value in default_app_state.items():
+        if key not in app_state:
+            app_state[key] = default_value
+    
+    # Formata o progresso para o frontend
+    progress = app_state.get('progress', 0)
+    
+    # Calcula progresso baseado nas etapas, se não estiver definido diretamente
+    if progress == 0 and app_state.get('steps'):
+        try:
+            total_steps = len(app_state['steps'])
+            completed_steps = sum(1 for step in app_state['steps'] if step.get('status') in ['success', 'error'])
+            running_steps = sum(1 for step in app_state['steps'] if step.get('status') == 'running')
+            
+            if total_steps > 0:
+                # Conta etapas completas como 100%, em andamento como 50%
+                progress = int((completed_steps * 100 + running_steps * 50) / total_steps)
+        except Exception as e:
+            logger.error(f"Erro ao calcular progresso: {str(e)}")
+    
+    # Retorna um dicionário com valores seguros (usando .get() com valores padrão)
     return jsonify({
-        'status': app_state['status'],
-        'message': app_state['message'],
+        'status': app_state.get('status', 'idle'),
+        'message': app_state.get('message', 'Aguardando início da busca'),
         'progress': progress,
-        'logs': app_state['logs'],
-        'steps': app_state['steps'],
-        'result': app_state['result'],
-        'error': app_state['error'],
-        'started_at': app_state['started_at'],
-        'finished_at': app_state['finished_at']
+        'logs': app_state.get('logs', []),
+        'steps': app_state.get('steps', []),
+        'result': app_state.get('result', None),
+        'error': app_state.get('error', None),
+        'started_at': app_state.get('started_at', None),
+        'finished_at': app_state.get('finished_at', None)
     })
 
 @app.route('/iniciar', methods=['POST'])
@@ -726,81 +743,36 @@ def reset_state():
     }
     return app_state
 
-def init_sicar_robot():
+def get_sicar_robot():
     """
-    Inicializa e configura o robô SICAR
+    Inicializa e retorna um robô SICAR configurado
+    """
+    global sicar_robot
     
-    Returns:
-        SICARRobot: Instância configurada do robô
-    """
-    try:
-        # Cria o diretório base
-        os.makedirs(MAPS_DIR, exist_ok=True)
+    if sicar_robot is None:
+        # Configurações através de variáveis de ambiente
+        headless = os.environ.get('SICAR_HEADLESS', '0').lower() in ('1', 'true', 't', 'yes', 'y')
+        dev_mode = os.environ.get('SICAR_DEV_MODE', '1').lower() in ('1', 'true', 't', 'yes', 'y')
+        browser = os.environ.get('SICAR_BROWSER', 'chrome').lower()
         
-        # Configurações do navegador
-        headless = False  # Sempre False no ambiente de dev
-        dev_mode = os.environ.get('SICAR_DEV_MODE', 'True').lower() in ('true', '1', 't')
-        browser = os.environ.get('SICAR_BROWSER', 'chrome')
+        logger.info(f"Inicializando robô SICAR (headless={headless}, browser={browser}, dev_mode={dev_mode})")
         
-        # Log de configuração
-        logger.info(f"Inicializando robô SICAR: browser={browser}, headless={headless}, dev_mode={dev_mode}")
-        
-        # Instancia o robô
-        robot = SICARRobot(
-            base_dir=str(BASE_DIR),
-            browser=browser,
-            headless=headless,
-            dev_mode=dev_mode,
-            embed_browser=True  # Configurar para usar no iframe
-        )
-        
-        # Configura o callback para receber logs do robô
-        def log_callback(data):
-            # Registra os logs no console e no log do servidor
-            if data is None:
-                logger.warning("Received None data in log_callback")
-                return
-                
-            if isinstance(data, dict):
-                message = data.get('message', 'No message')
-                level = data.get('level', 'debug')
-                
-                if level == 'error':
-                    logger.error(message)
-                elif level == 'warning':
-                    logger.warning(message)
-                else:
-                    logger.debug(message)
-                
-                # Adiciona ao histórico de logs
-                app_state['logs'].append({
-                    'timestamp': datetime.now().isoformat(),
-                    'message': message,
-                    'level': level
-                })
-                
-                # Se for status, atualiza o status global
-                if data.get('type') == 'status':
-                    app_state['message'] = message
-                    if 'progress' in data:
-                        app_state['progress'] = data['progress']
-            else:
-                # Se for uma string simples, registra como debug
-                message = str(data)
-                logger.debug(message)
-                app_state['logs'].append({
-                    'timestamp': datetime.now().isoformat(),
-                    'message': message,
-                    'level': 'debug'
-                })
-        
-        # Registra o callback
-        robot.set_log_callback(log_callback)
-        
-        return robot
-    except Exception as e:
-        logger.error(f"Erro ao inicializar robô SICAR: {str(e)}")
-        return None
+        try:
+            # Forçar embed_browser=True para garantir que o navegador abra no iframe
+            sicar_robot = SICARRobot(
+                base_dir=os.path.dirname(os.path.abspath(__file__)),
+                browser=browser,
+                headless=headless,
+                dev_mode=dev_mode,
+                embed_browser=True  # Sempre True para garantir o iframe
+            )
+            logger.info(f"Robot {browser} inicializado com sucesso")
+        except Exception as e:
+            logger.error(f"Erro ao inicializar robô SICAR: {str(e)}")
+            sicar_robot = None
+            raise
+    
+    return sicar_robot
 
 def add_log(message: str, level: str = 'info', step: str = None):
     """
@@ -897,153 +869,166 @@ def buscar_sicar(lat, lon):
     
     try:
         # Inicializa o robô SICAR
-        robot = init_sicar_robot()
+        robot = get_sicar_robot()
         app_state['robot'] = robot
         
-        # Adiciona log de sucesso
-        add_log("Robot Chrome inicializado com sucesso", "success")
-        
-        # Atualiza status
-        update_step('init', 'success')
-        update_step('browser', 'success')
-        update_step('access_site', 'running')
-        
-        # Adiciona log
-        add_log("Configurando navegador...", "info")
-        app_state['message'] = "Configurando navegador..."
-        
-        # Acessa o site do SICAR
-        add_log("Acessando portal do SICAR...", "info")
-        app_state['message'] = "Acessando portal do SICAR..."
-        
-        try:
-            if not robot.acessar_sicar():
-                raise Exception("Falha ao acessar o portal do SICAR")
+        if robot:
+            # Garante que o navegador será embutido no iframe
+            robot.embed_browser = True
+            add_log(f"Robot {robot.browser} inicializado com sucesso", "info")
+            update_step('browser', 'success')
+            
+            # Explicitamente inicializa o driver antes de qualquer operação
+            robot_driver_initialized = robot._inicializar_driver()
+            if not robot_driver_initialized:
+                add_log("Falha ao inicializar o driver do navegador", "error")
+                update_step('browser', 'error')
+                app_state['status'] = 'error'
+                app_state['error'] = "Falha ao inicializar o driver do navegador"
+                app_state['finished_at'] = datetime.now().isoformat()
+                return
+                
+            add_log("Driver do navegador inicializado com sucesso", "info")
             
             # Atualiza status
-            update_step('access_site', 'success')
-            update_step('select_state', 'running')
+            update_step('access_site', 'running')
             
             # Adiciona log
-            add_log("Portal do SICAR acessado com sucesso", "success")
-            app_state['message'] = "Buscando estado..."
+            add_log("Configurando navegador...", "info")
+            app_state['message'] = "Configurando navegador..."
             
-            # Identifica o estado
-            add_log("Identificando estado...", "info")
-            estado = robot.identificar_estado(lat, lon)
+            # Acessa o site do SICAR
+            add_log("Acessando portal do SICAR...", "info")
+            app_state['message'] = "Acessando portal do SICAR..."
             
-            if not estado:
-                raise Exception("Não foi possível identificar o estado para estas coordenadas")
-            
-            add_log(f"Estado identificado: {estado}", "success")
-            
-            # Seleciona o estado
-            add_log(f"Selecionando estado: {estado}", "info")
-            app_state['message'] = f"Selecionando estado: {estado}..."
-            
-            if not robot.selecionar_estado(estado):
-                raise Exception(f"Não foi possível selecionar o estado: {estado}")
-            
-            # Atualiza status
-            update_step('select_state', 'success')
-            update_step('select_city', 'running')
-            
-            # Adiciona log
-            add_log(f"Estado selecionado: {estado}", "success")
-            app_state['message'] = "Buscando município..."
-            
-            # Identifica o município
-            add_log("Identificando município...", "info")
-            municipio = robot.identificar_municipio(lat, lon)
-            
-            if not municipio:
-                raise Exception("Não foi possível identificar o município para estas coordenadas")
-            
-            add_log(f"Município identificado: {municipio}", "success")
-            
-            # Seleciona o município
-            add_log(f"Selecionando município: {municipio}", "info")
-            app_state['message'] = f"Selecionando município: {municipio}..."
-            
-            if not robot.selecionar_municipio(municipio):
-                raise Exception(f"Não foi possível selecionar o município: {municipio}")
-            
-            # Atualiza status
-            update_step('select_city', 'success')
-            update_step('select_property', 'running')
-            
-            # Adiciona log
-            add_log(f"Município selecionado: {municipio}", "success")
-            app_state['message'] = "Buscando propriedade..."
-            
-            # Busca propriedade
-            add_log("Buscando propriedade por coordenadas...", "info")
-            propriedade = robot.buscar_propriedade(lat, lon)
-            
-            if not propriedade:
-                raise Exception("Nenhuma propriedade encontrada para estas coordenadas")
-            
-            # Atualiza status
-            update_step('select_property', 'success')
-            update_step('extract', 'running')
-            
-            # Adiciona log
-            add_log(f"Propriedade encontrada: {propriedade['nome']}", "success")
-            app_state['message'] = f"Extraindo informações da propriedade: {propriedade['nome']}..."
-            
-            # Extrai informações da propriedade
-            add_log("Extraindo informações e mapa da propriedade...", "info")
-            mapa = robot.extrair_mapa(propriedade)
-            
-            if not mapa:
-                raise Exception("Não foi possível extrair o mapa da propriedade")
-            
-            # Atualiza status
-            update_step('extract', 'success')
-            update_step('finish', 'running')
-            
-            # Adiciona log
-            add_log("Mapa extraído com sucesso", "success")
-            app_state['message'] = "Finalizando..."
-            
-            # Define o resultado
-            app_state['result'] = {
-                'estado': estado,
-                'municipio': municipio,
-                'propriedade': propriedade,
-                'mapa': mapa
-            }
-            
-            # Atualiza status
-            update_step('finish', 'success')
-            
-            # Adiciona log
-            add_log("Processo concluído com sucesso", "success")
-            app_state['message'] = "Busca concluída com sucesso"
-            app_state['status'] = 'success'
-            
-        except Exception as e:
-            error_message = f"Erro na busca: {str(e)}"
-            add_log(error_message, "error")
-            app_state['error'] = {
-                'message': str(e),
-                'traceback': traceback.format_exc()
-            }
-            app_state['status'] = 'error'
-            app_state['message'] = f"Erro: {str(e)}"
-            
-        finally:
-            # Fecha o navegador
             try:
-                if robot and robot.driver:
-                    robot.driver.quit()
-                    add_log("Navegador fechado", "info")
-            except:
-                add_log("Erro ao fechar navegador", "warning")
-            
-            # Marca como finalizado
-            app_state['finished_at'] = datetime.now().isoformat()
-            
+                if not robot.acessar_sicar():
+                    raise Exception("Falha ao acessar o portal do SICAR")
+                
+                # Atualiza status
+                update_step('access_site', 'success')
+                update_step('select_state', 'running')
+                
+                # Adiciona log
+                add_log("Portal do SICAR acessado com sucesso", "success")
+                app_state['message'] = "Buscando estado..."
+                
+                # Identifica o estado
+                add_log("Identificando estado...", "info")
+                estado = robot.identificar_estado(lat, lon)
+                
+                if not estado:
+                    raise Exception("Não foi possível identificar o estado para estas coordenadas")
+                
+                add_log(f"Estado identificado: {estado}", "success")
+                
+                # Seleciona o estado
+                add_log(f"Selecionando estado: {estado}", "info")
+                app_state['message'] = f"Selecionando estado: {estado}..."
+                
+                if not robot.selecionar_estado(estado):
+                    raise Exception(f"Não foi possível selecionar o estado: {estado}")
+                
+                # Atualiza status
+                update_step('select_state', 'success')
+                update_step('select_city', 'running')
+                
+                # Adiciona log
+                add_log(f"Estado selecionado: {estado}", "success")
+                app_state['message'] = "Buscando município..."
+                
+                # Identifica o município
+                add_log("Identificando município...", "info")
+                municipio = robot.identificar_municipio(lat, lon)
+                
+                if not municipio:
+                    raise Exception("Não foi possível identificar o município para estas coordenadas")
+                
+                add_log(f"Município identificado: {municipio}", "success")
+                
+                # Seleciona o município
+                add_log(f"Selecionando município: {municipio}", "info")
+                app_state['message'] = f"Selecionando município: {municipio}..."
+                
+                if not robot.selecionar_municipio(municipio):
+                    raise Exception(f"Não foi possível selecionar o município: {municipio}")
+                
+                # Atualiza status
+                update_step('select_city', 'success')
+                update_step('select_property', 'running')
+                
+                # Adiciona log
+                add_log(f"Município selecionado: {municipio}", "success")
+                app_state['message'] = "Buscando propriedade..."
+                
+                # Busca propriedade
+                add_log("Buscando propriedade por coordenadas...", "info")
+                propriedade = robot.buscar_propriedade(lat, lon)
+                
+                if not propriedade:
+                    raise Exception("Nenhuma propriedade encontrada para estas coordenadas")
+                
+                # Atualiza status
+                update_step('select_property', 'success')
+                update_step('extract', 'running')
+                
+                # Adiciona log
+                add_log(f"Propriedade encontrada: {propriedade['nome']}", "success")
+                app_state['message'] = f"Extraindo informações da propriedade: {propriedade['nome']}..."
+                
+                # Extrai informações da propriedade
+                add_log("Extraindo informações e mapa da propriedade...", "info")
+                mapa = robot.extrair_mapa(propriedade)
+                
+                if not mapa:
+                    raise Exception("Não foi possível extrair o mapa da propriedade")
+                
+                # Atualiza status
+                update_step('extract', 'success')
+                update_step('finish', 'running')
+                
+                # Adiciona log
+                add_log("Mapa extraído com sucesso", "success")
+                app_state['message'] = "Finalizando..."
+                
+                # Define o resultado
+                app_state['result'] = {
+                    'estado': estado,
+                    'municipio': municipio,
+                    'propriedade': propriedade,
+                    'mapa': mapa
+                }
+                
+                # Atualiza status
+                update_step('finish', 'success')
+                
+                # Adiciona log
+                add_log("Processo concluído com sucesso", "success")
+                app_state['message'] = "Busca concluída com sucesso"
+                app_state['status'] = 'success'
+                
+            except Exception as e:
+                error_message = f"Erro na busca: {str(e)}"
+                add_log(error_message, "error")
+                app_state['error'] = {
+                    'message': str(e),
+                    'traceback': traceback.format_exc()
+                }
+                app_state['status'] = 'error'
+                app_state['message'] = f"Erro: {str(e)}"
+                
+            finally:
+                # Fecha o navegador
+                try:
+                    if robot and robot.driver:
+                        robot.driver.quit()
+                        add_log("Navegador fechado", "info")
+                except:
+                    add_log("Erro ao fechar navegador", "warning")
+                
+                # Marca como finalizado
+                app_state['finished_at'] = datetime.now().isoformat()
+                
     except Exception as e:
         app_state['status'] = 'error'
         app_state['message'] = f"Erro: {str(e)}"
