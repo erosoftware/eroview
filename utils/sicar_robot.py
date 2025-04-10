@@ -39,7 +39,7 @@ class SICARRobot:
         log: Instância do logger
     """
     
-    def __init__(self, base_dir, browser="chrome", headless=True, dev_mode=False, embed_browser=True):
+    def __init__(self, base_dir, browser="chrome", headless=True, dev_mode=False, embed_browser=False):
         """
         Inicializa o robô SICAR
         
@@ -82,16 +82,16 @@ class SICARRobot:
             success (bool): Se a operação foi bem-sucedida
             error_message (str, optional): Mensagem de erro, se houver
         """
+        # Adiciona à lista de diagnósticos
         diagnostic = {
-            "operation": operation,
-            "success": success,
-            "timestamp": datetime.now().isoformat(),
-            "error": error_message if not success and error_message else None
+            'operation': operation,
+            'success': success,
+            'error_message': str(error_message) if error_message else None,
+            'timestamp': datetime.now().isoformat()
         }
-        
         self.diagnostics.append(diagnostic)
         
-        # Registra no log
+        # Log local
         if success:
             self.log.info(f"[{operation}] Sucesso")
         else:
@@ -101,7 +101,16 @@ class SICARRobot:
         if self.log_callback:
             level = "success" if success else "error"
             message = f"[{operation}] " + (f"Sucesso" if success else f"Falha: {error_message}")
-            self.log_callback(message, level)
+            
+            # Novo formato: enviar um dicionário com todos os dados
+            self.log_callback({
+                'message': message,
+                'level': level,
+                'type': 'diagnostic',
+                'operation': operation,
+                'success': success,
+                'timestamp': datetime.now().isoformat()
+            })
     
     def _setup_webdriver(self):
         """
@@ -278,7 +287,12 @@ class SICARRobot:
         
         for attempt in range(max_attempts):
             try:
-                self.add_diagnostic("access_site", True, f"Tentativa {attempt+1} de {max_attempts}")
+                # Registra tentativa com mensagem completa para evitar chamadas separadas ao callback
+                self._update_status(f"Tentativa {attempt+1} de {max_attempts} para acessar SICAR")
+                logger.info(f"Tentativa {attempt+1} de {max_attempts} para acessar SICAR")
+                
+                # Evita chamar add_diagnostic separadamente, o que pode causar problemas com callback
+                # self.add_diagnostic("access_site", True, f"Tentativa {attempt+1} de {max_attempts}")
                 
                 # Acessa a URL
                 self.driver.get(url)
@@ -301,10 +315,12 @@ class SICARRobot:
                 
                 # Se qualquer um dos indicadores for positivo, consideramos que estamos na página do SICAR
                 if any(sicar_indicators):
+                    self._update_status(f"Portal SICAR acessado com sucesso: {current_title}")
                     self.add_diagnostic("access_site", True, f"Portal SICAR acessado com sucesso: {current_title}")
                     
                     # Verifica se já estamos na tela de consulta de imóveis
                     if "IMÓVEIS" in current_title or "/imoveis/" in current_url:
+                        self._update_status("Já na tela de consulta de imóveis")
                         self.add_diagnostic("access_site", True, "Já na tela de consulta de imóveis")
                         return True
                         
@@ -321,12 +337,12 @@ class SICARRobot:
                             consulta_elements[0].click()
                             self.wait_for_page_load(timeout=10)
                     except Exception as nav_e:
-                        self.add_diagnostic("access_site", True, f"Aviso ao navegar: {str(nav_e)}")
+                        self._update_status(f"Aviso ao navegar: {str(nav_e)}")
                         # Continuamos mesmo se houver erro, pois já podemos estar na página correta
                     
                     return True
                 else:
-                    self.add_diagnostic("access_site", False, f"Página incorreta: {current_title}")
+                    self._update_status(f"Página incorreta: {current_title}")
                     
                     # Tenta seguir links para a página correta
                     try:
@@ -341,18 +357,20 @@ class SICARRobot:
                             
                             # Verifica novamente
                             if "consultapublica.car.gov.br" in self.driver.current_url.lower():
-                                self.add_diagnostic("access_site", True, "Portal SICAR acessado após redirecionamento")
+                                self._update_status("Portal SICAR acessado após redirecionamento")
                                 return True
                     except Exception as e:
-                        pass
+                        self._update_status(f"Erro ao seguir link: {str(e)}")
             
             except Exception as e:
-                self.add_diagnostic("access_site", False, f"Erro: {str(e)}")
+                self._update_status(f"Erro na tentativa {attempt+1}: {str(e)}")
+                logger.error(f"Erro ao acessar SICAR: {str(e)}")
             
             # Espera antes de tentar novamente
             time.sleep(2)
         
         # Se chegou aqui, todas as tentativas falharam
+        self._update_status("Falha em todas as tentativas de acessar o SICAR", level="error")
         self.add_diagnostic("access_site", False, "Falha em todas as tentativas de acessar o SICAR")
         return False
 
@@ -1079,6 +1097,8 @@ class SICARRobot:
             bool: True se o estado foi selecionado com sucesso, False caso contrário
         """
         try:
+            self.log.info(f"Tentando selecionar estado: {estado}")
+            
             # Normaliza o nome do estado para evitar problemas com acentos
             estado_normalizado = unidecode(estado.upper())
             estado_sigla = self._mapear_estado_para_sigla(estado)
@@ -1356,7 +1376,7 @@ class SICARRobot:
                     self._update_status("Estado selecionado com sucesso", 50)
                     return True
             
-            # Se chegamos aqui, fazer uma última tentativa direta
+            # Se chegou aqui, fazer uma última tentativa direta
             self._update_status("Tentando método alternativo para selecionar estado", 35)
             return self._selecionar_estado_generico(estado, estado_sigla)
             
@@ -1728,22 +1748,28 @@ class SICARRobot:
             self.add_diagnostic("select_municipality", False, f"Erro: {str(e)}")
             return False
 
-    def _update_status(self, message, progress=None):
+    def _update_status(self, message, progress=None, level="info"):
         """
         Atualiza o status da automação e envia para o callback, se disponível
         
         Args:
             message (str): Mensagem de status
             progress (int): Progresso (0-100)
+            level (str): Nível de log (info, error, warning, success)
         """
         if progress is not None:
             self.progresso = progress
         
-        # Registrar no log
-        self.log.info(f"Status: {message} ({self.progresso}%)")
+        # Registrar no log adequado baseado no nível
+        if level == "error":
+            self.log.error(f"Status: {message} ({self.progresso}%)")
+        elif level == "warning":
+            self.log.warning(f"Status: {message} ({self.progresso}%)")
+        else:
+            self.log.info(f"Status: {message} ({self.progresso}%)")
         
         # Adiciona ao diagnóstico
-        self.add_diagnostic("status_update", True, {
+        self.add_diagnostic("status_update", level != "error", {
             "message": message,
             "progress": self.progresso
         })
@@ -1755,6 +1781,7 @@ class SICARRobot:
                     "type": "status",
                     "message": message,
                     "progress": self.progresso,
+                    "level": level,
                     "timestamp": datetime.now().isoformat()
                 })
             except Exception as e:

@@ -396,99 +396,120 @@
             </div>
             
             <div class="col-lg-6">
-                <!-- Visualização do SICAR -->
-                <div class="card mb-4 shadow-sm">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0"><i class="fas fa-eye me-2"></i> Visualização do SICAR</h5>
+                <!-- Status da automação SICAR -->
+                <div class="card mb-3 border-primary">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="mb-0"><i class="fas fa-robot me-2"></i> Status da Automação SICAR</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="progress mb-3" style="height: 25px;">
+                            <div id="sicar_progress_bar" class="progress-bar progress-bar-striped" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                        </div>
+                        <div id="sicar_status_message" class="alert alert-info mb-0">
+                            Aguardando início da busca...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Navegador SICAR Embutido (mesmo tamanho do box de log) -->
+                <div class="card mb-3 border-secondary">
+                    <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0"><i class="fas fa-globe me-2"></i> Navegação SICAR</h6>
                         <div>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" id="refreshViewButton">
+                            <button type="button" class="btn btn-sm btn-light" id="refreshSicarFrame" title="Atualizar">
                                 <i class="fas fa-sync-alt"></i>
                             </button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" id="expandViewButton">
+                            <button type="button" class="btn btn-sm btn-light" id="expandSicarFrame" title="Expandir">
                                 <i class="fas fa-expand"></i>
                             </button>
                         </div>
                     </div>
-                    <div class="card-body">
-                        <!-- Status da automação SICAR -->
-                        <div class="card mb-3 border-primary">
-                            <div class="card-header bg-primary text-white">
-                                <h6 class="mb-0"><i class="fas fa-robot me-2"></i> Status da Automação SICAR</h6>
-                            </div>
-                            <div class="card-body">
-                                <div class="progress mb-3" style="height: 25px;">
-                                    <div id="sicar_progress_bar" class="progress-bar progress-bar-striped" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
-                                </div>
-                                <div id="sicar_status_message" class="alert alert-info mb-0">
-                                    Aguardando início da busca...
-                                </div>
-                            </div>
-                        </div>
-
-                        <div id="sicarView" class="border bg-light overflow-hidden" style="height: 500px; position: relative;">
+                    <div class="card-body p-0">
+                        <div id="sicarBrowserView" style="height: 300px; position: relative;">
                             <!-- Overlay de carregamento - inicialmente oculto -->
-                            <div id="loadingOverlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(255, 255, 255, 0.8); z-index: 1000; display: none;">
-                                <div class="text-center">
-                                    <div class="spinner-border text-primary my-3" role="status">
+                            <div id="browserLoadingOverlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(255, 255, 255, 0.8); z-index: 1000; display: none;">
+                                <div class="text-center" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+                                    <div class="spinner-border text-primary" role="status">
                                         <span class="visually-hidden">Carregando...</span>
                                     </div>
-                                    <h5>Carregando visualização...</h5>
-                                    <p class="text-muted">Por favor, aguarde enquanto buscamos a propriedade.</p>
+                                    <p class="mt-2">Carregando SICAR...</p>
                                 </div>
                             </div>
                             
                             <!-- Mensagem quando não há busca - inicialmente visível -->
-                            <div id="noSearchMessage" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(245, 245, 245, 0.9); z-index: 999; display: flex; justify-content: center; align-items: center; flex-direction: column; text-align: center; padding: 20px;">
-                                <i class="fas fa-search fa-3x text-muted mb-3"></i>
-                                <h4>Faça uma busca para visualizar o mapa</h4>
-                                <p class="text-muted">Insira as coordenadas e clique em "Buscar" para iniciar</p>
+                            <div id="noBrowserMessage" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(245, 245, 245, 0.9); z-index: 999; display: flex; justify-content: center; align-items: center; flex-direction: column; text-align: center; padding: 20px;">
+                                <i class="fas fa-globe fa-3x text-muted mb-3"></i>
+                                <h5>Navegador SICAR</h5>
+                                <p class="text-muted">O navegador será exibido aqui durante a busca</p>
                             </div>
+                            
                             <!-- Iframe para navegação SICAR inline -->
                             <iframe id="sicarFrame" src="about:blank" style="width: 100%; height: 100%; border: none; display: none;"></iframe>
-                            <div id="mapView" style="width: 100%; height: 100%; display: none;">
-                                <img id="mapImage" src="" class="img-fluid" alt="Mapa da propriedade" style="max-width: 100%; max-height: 100%;">
+                        </div>
+                    </div>
+                </div>
+
+                <div id="sicarView" class="border bg-light overflow-hidden" style="height: 400px; position: relative;">
+                    <!-- Overlay de carregamento - inicialmente oculto -->
+                    <div id="loadingOverlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(255, 255, 255, 0.8); z-index: 1000; display: none;">
+                        <div class="text-center">
+                            <div class="spinner-border text-primary my-3" role="status">
+                                <span class="visually-hidden">Carregando...</span>
+                            </div>
+                            <h5>Carregando visualização...</h5>
+                            <p class="text-muted">Por favor, aguarde enquanto buscamos a propriedade.</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Mensagem quando não há busca - inicialmente visível -->
+                    <div id="noSearchMessage" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(245, 245, 245, 0.9); z-index: 999; display: flex; justify-content: center; align-items: center; flex-direction: column; text-align: center; padding: 20px;">
+                        <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                        <h4>Faça uma busca para visualizar o mapa</h4>
+                        <p class="text-muted">Insira as coordenadas e clique em "Buscar" para iniciar</p>
+                    </div>
+                    
+                    <div id="mapView" style="width: 100%; height: 100%; display: none;">
+                        <img id="mapImage" src="" class="img-fluid" alt="Mapa da propriedade" style="max-width: 100%; max-height: 100%;">
+                    </div>
+                </div>
+
+                <!-- Informações da Propriedade -->
+                <div id="propertyInfoCard" class="card mt-3" style="display: none;">
+                    <div class="card-header bg-success text-white">
+                        <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i> Informações da Propriedade</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-2">
+                                    <strong>Estado:</strong>
+                                    <span id="property_state">-</span>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-2">
+                                    <strong>Município:</strong>
+                                    <span id="property_city">-</span>
+                                </div>
                             </div>
                         </div>
-
-                        <!-- Informações da Propriedade -->
-                        <div id="propertyInfoCard" class="card mt-3" style="display: none;">
-                            <div class="card-header bg-success text-white">
-                                <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i> Informações da Propriedade</h6>
-                            </div>
-                            <div class="card-body">
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="mb-2">
-                                            <strong>Estado:</strong>
-                                            <span id="property_state">-</span>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="mb-2">
-                                            <strong>Município:</strong>
-                                            <span id="property_city">-</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="mb-2">
-                                            <strong>Nome:</strong>
-                                            <span id="property_name">-</span>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="mb-2">
-                                            <strong>CAR:</strong>
-                                            <span id="property_car">-</span>
-                                        </div>
-                                    </div>
-                                </div>
+                        <div class="row">
+                            <div class="col-md-6">
                                 <div class="mb-2">
-                                    <strong>Área:</strong>
-                                    <span id="property_area">-</span>
+                                    <strong>Nome:</strong>
+                                    <span id="property_name">-</span>
                                 </div>
                             </div>
+                            <div class="col-md-6">
+                                <div class="mb-2">
+                                    <strong>CAR:</strong>
+                                    <span id="property_car">-</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-2">
+                            <strong>Área:</strong>
+                            <span id="property_area">-</span>
                         </div>
                     </div>
                 </div>
@@ -555,59 +576,6 @@
                 console.log(message);
             }
         }
-        
-        // Intercepta todas as requisições fetch para monitoramento
-        const originalFetch = window.fetch;
-        window.fetch = function() {
-            const url = arguments[0];
-            const options = arguments[1] || {};
-            
-            logDebug(`Iniciando requisição fetch para ${url}`, 'info');
-            logDebug(`Método: ${options.method || 'GET'}, Headers: ${JSON.stringify(options.headers || {})}`);
-            if (options.body) {
-                try {
-                    logDebug(`Corpo da requisição: ${options.body}`);
-                } catch (e) {
-                    logDebug(`Corpo da requisição: [não pode ser convertido para string]`);
-                }
-            }
-            
-            return originalFetch.apply(this, arguments)
-                .then(response => {
-                    logDebug(`Resposta recebida de ${url}: Status ${response.status}`, 
-                             response.ok ? 'info' : 'warning');
-                    
-                    // Clona a resposta para não destruir o corpo original
-                    const clone = response.clone();
-                    
-                    // Tenta extrair o corpo da resposta como texto para logging
-                    clone.text().then(text => {
-                        try {
-                            const jsonResponse = JSON.parse(text);
-                            logDebug(`Corpo da resposta JSON: ${JSON.stringify(jsonResponse)}`);
-                        } catch (e) {
-                            // Se não for JSON, mostra como texto
-                            if (text.length > 500) {
-                                logDebug(`Corpo da resposta (truncado): ${text.substring(0, 500)}...`);
-                            } else {
-                                logDebug(`Corpo da resposta: ${text}`);
-                            }
-                        }
-                    }).catch(e => {
-                        logDebug(`Erro ao extrair corpo da resposta: ${e.message}`, 'error');
-                    });
-                    
-                    return response;
-                })
-                .catch(error => {
-                    logDebug(`Erro na requisição fetch para ${url}: ${error.message}`, 'error');
-                    throw error;
-                });
-        };
-        
-        let searchId = null;
-        let statusCheckInterval = null;
-        let progressReportCount = 0;
         
         // Função para atualizar a barra de progresso
         function updateProgress(status, progress) {
@@ -1091,488 +1059,6 @@
             // Log para depuração
             addToLog('info', `Propriedade encontrada: ${property.nome}`);
         }
-        
-        // Inicializa a página ocultando o overlay de carregamento
-        document.addEventListener('DOMContentLoaded', function() {
-            // Esconde o overlay de carregamento inicialmente e mostra a mensagem de "nenhuma busca"
-            const loadingOverlay = document.getElementById('loadingOverlay');
-            const noSearchMessage = document.getElementById('noSearchMessage');
-            
-            if (loadingOverlay) {
-                loadingOverlay.style.display = 'none';
-            }
-            
-            if (noSearchMessage) {
-                noSearchMessage.style.display = 'flex';
-            }
-            
-            // Preenche as coordenadas de exemplo para facilitar testes
-            const latInput = document.getElementById('sicar_lat');
-            const lonInput = document.getElementById('sicar_lon');
-            
-            if (latInput) latInput.value = '-23.276064';
-            if (lonInput) lonInput.value = '-53.266292';
-        });
-        
-        // Funções para o SICAR
-        $(document).ready(function() {
-            console.log("jQuery carregado e pronto!");
-            
-            // Variáveis globais
-            let sicarpoll = null;
-            
-            // Ocultamos explicitamente o overlay de carregamento e mostramos a mensagem de que não há busca
-            $('#loadingOverlay').hide();
-            $('#noSearchMessage').show();
-            
-            // Inicializa o estado da interface
-            inicializarInterface();
-            
-            // Botão de buscar propriedade
-            $('#sicar_buscar').click(function() {
-                console.log("Botão buscar clicado");
-                const lat = $('#sicar_lat').val().trim();
-                const lon = $('#sicar_lon').val().trim();
-                
-                if (!lat || !lon) {
-                    mostrarAlerta('Informe as coordenadas (latitude e longitude)', 'warning');
-                    return;
-                }
-                
-                // Valida formato das coordenadas
-                if (isNaN(parseFloat(lat)) || isNaN(parseFloat(lon))) {
-                    mostrarAlerta('Coordenadas em formato inválido', 'danger');
-                    return;
-                }
-                
-                // Inicia o processo
-                iniciarBuscaSicar(lat, lon);
-            });
-            
-            // Função para inicializar a interface
-            function inicializarInterface() {
-                console.log("Inicializando interface...");
-                // Garante que overlay de carregamento esteja oculto ao iniciar
-                $('#loadingOverlay').hide();
-                $('#noSearchMessage').show();
-                
-                // Limpa informações de buscas anteriores
-                $('#sicar_info_container').hide();
-                $('#sicar_map_container').hide();
-                $('#sicar_diagnostics_container').hide();
-                
-                // Reseta barra de progresso
-                $('#sicar_progress_bar').css('width', '0%').attr('aria-valuenow', 0).text('0%');
-                
-                // Verifica status inicial
-                checkStatusSafely();
-                
-                // Preenche as coordenadas de exemplo para facilitar testes
-                $('#sicar_lat').val('-23.276064');
-                $('#sicar_lon').val('-53.266292');
-                
-                console.log("Interface inicializada com sucesso");
-            }
-            
-            // Função para iniciar a busca no SICAR
-            function iniciarBuscaSicar(lat, lon) {
-                console.log(`Iniciando busca para: ${lat}, ${lon}`);
-                
-                // Limpa informações anteriores
-                $('#sicar_info_container').hide();
-                $('#sicar_map_container').hide();
-                $('#sicar_diagnostics_container').hide();
-                
-                // Mostra o overlay de carregamento
-                $('#noSearchMessage').hide();
-                $('#loadingOverlay').show();
-                
-                // Reseta barra de progresso e status message
-                atualizarProgresso(5, 'bg-warning', 'Iniciando busca...');
-                
-                // Desabilita botão durante a execução
-                $('#sicar_buscar').prop('disabled', true);
-                
-                // Limpa logs e área de diagnóstico
-                $('#sicar_log').empty();
-                $('#diagnostics_accordion').empty();
-                
-                // Adiciona log inicial
-                addToLog('info', `Iniciando busca para coordenadas ${lat}, ${lon}`);
-                
-                // Inicia a chamada para o serviço de busca
-                fetch('/sicar/buscar', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        lat: lat,
-                        lon: lon
-                    })
-                })
-                .then(response => {
-                    console.log(`Resposta recebida: ${response.status} ${response.statusText}`);
-                    return response.json();
-                })
-                .then(data => {
-                    console.log("Resposta da API:", data);
-                    if (data.error) {
-                        mostrarAlerta(`Erro ao iniciar busca: ${data.error}`, 'danger');
-                        // Libera interface
-                        $('#loadingOverlay').hide();
-                        $('#noSearchMessage').show();
-                        $('#sicar_buscar').prop('disabled', false);
-                        return;
-                    }
-                    
-                    // Se não houver erro, inicia o polling para verificar o status
-                    addToLog('info', 'Busca iniciada com sucesso, monitorando progresso...');
-                    startStatusPolling();
-                })
-                .catch(error => {
-                    console.error("Erro na API:", error);
-                    mostrarAlerta(`Erro ao comunicar com o servidor: ${error}`, 'danger');
-                    addToLog('error', `Erro de comunicação: ${error}`);
-                    
-                    // Libera interface
-                    $('#loadingOverlay').hide();
-                    $('#noSearchMessage').show();
-                    $('#sicar_buscar').prop('disabled', false);
-                });
-            }
-            
-            // Função para iniciar verificação periódica do status
-            function startStatusPolling() {
-                console.log("Iniciando polling de status");
-                // Cancela qualquer polling anterior
-                if (sicarpoll !== null) {
-                    clearInterval(sicarpoll);
-                }
-                
-                // Cria novo intervalo
-                sicarpoll = setInterval(checkStatusSafely, 2000);
-            }
-            
-            // Função segura para verificar status (com tratamento de erros)
-            function checkStatusSafely() {
-                try {
-                    checkStatus();
-                } catch (error) {
-                    console.error("Erro ao verificar status:", error);
-                    addToLog('error', `Erro ao verificar status: ${error.message}`);
-                }
-            }
-            
-            // Função para verificar o status do processamento
-            function checkStatus() {
-                fetch('/status')
-                    .then(response => response.json())
-                    .then(data => {
-                        console.log("Status atualizado:", data);
-                        
-                        // Se temos um status, atualiza a interface
-                        if (data) {
-                            // Atualiza barra de progresso
-                            if (data.progress !== undefined) {
-                                let statusClass = 'bg-info';
-                                if (data.status === 'running') statusClass = 'bg-warning';
-                                else if (data.status === 'completed') statusClass = 'bg-success';
-                                else if (data.status === 'error') statusClass = 'bg-danger';
-                                
-                                // Garante que a mensagem de status seja exibida
-                                let mensagem = data.message || 'Processando...';
-                                atualizarProgresso(data.progress, statusClass, mensagem);
-                                
-                                // Garante que o overlay de carregamento esteja visível quando em execução
-                                if (data.status === 'running') {
-                                    $('#loadingOverlay').show();
-                                    $('#noSearchMessage').hide();
-                                } 
-                                // Se terminou com erro, mostra mensagem
-                                else if (data.status === 'error') {
-                                    $('#loadingOverlay').hide();
-                                    $('#noSearchMessage').show();
-                                    $('#sicar_buscar').prop('disabled', false);
-                                }
-                            }
-                            
-                            // Adiciona logs novos
-                            if (data.logs && data.logs.length > 0) {
-                                data.logs.forEach(log => {
-                                    addToLog(log.level || 'info', log.message);
-                                });
-                            }
-                            
-                            // Verifica diagnósticos
-                            if (data.diagnostics) {
-                                updateDiagnostics(data.diagnostics);
-                                $('#sicar_diagnostics_container').show();
-                            }
-                            
-                            // Processa resultados quando finalizado
-                            if (data.status === 'completed' && data.result) {
-                                handleResults(data.result);
-                                if (sicarpoll !== null) {
-                                    clearInterval(sicarpoll);
-                                    sicarpoll = null;
-                                }
-                                return;
-                            }
-                            
-                            // Processa erros
-                            if (data.status === 'error') {
-                                addToLog('error', `Erro na busca: ${data.error || 'Erro desconhecido'}`);
-                                mostrarAlerta(`Erro na busca: ${data.error || 'Erro desconhecido'}`, 'danger');
-                                $('#loadingOverlay').hide();
-                                $('#noSearchMessage').show();
-                                $('#sicar_buscar').prop('disabled', false);
-                                
-                                if (sicarpoll !== null) {
-                                    clearInterval(sicarpoll);
-                                    sicarpoll = null;
-                                }
-                            }
-                        }
-                    })
-                    .catch(error => {
-                        console.error("Erro ao verificar status:", error);
-                        addToLog('error', `Erro ao verificar status: ${error}`);
-                    });
-            }
-            
-            // Funções utilitárias
-            function mostrarAlerta(mensagem, tipo) {
-                const alertPlaceholder = document.getElementById('alert-placeholder');
-                if (!alertPlaceholder) return;
-                
-                const wrapper = document.createElement('div');
-                wrapper.innerHTML = `
-                    <div class="alert alert-${tipo} alert-dismissible fade show" role="alert">
-                        ${mensagem}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    </div>
-                `;
-                
-                alertPlaceholder.appendChild(wrapper);
-                
-                // Auto-remover após alguns segundos
-                setTimeout(() => {
-                    const alert = wrapper.querySelector('.alert');
-                    if (alert) {
-                        alert.classList.remove('show');
-                        setTimeout(() => wrapper.remove(), 500);
-                    }
-                }, 5000);
-            }
-            
-            // Funções para adicionar ao log
-            function addToLog(level, message) {
-                const logContainer = document.getElementById('sicar_log');
-                if (!logContainer) return;
-                
-                const row = document.createElement('div');
-                row.className = 'log-entry';
-                
-                // Adiciona timestamp
-                const now = new Date();
-                const timestamp = now.toLocaleTimeString();
-                
-                // Formata baseado no nível
-                let levelClass = '';
-                switch(level) {
-                    case 'error': levelClass = 'text-danger'; break;
-                    case 'warning': levelClass = 'text-warning'; break;
-                    case 'success': levelClass = 'text-success'; break;
-                    case 'info': 
-                    default: levelClass = 'text-info';
-                }
-                
-                row.innerHTML = `<span class="text-secondary">[${timestamp}]</span> <span class="${levelClass}">${message}</span>`;
-                logContainer.appendChild(row);
-                
-                // Rola para o fim para mostrar a entrada mais recente
-                logContainer.scrollTop = logContainer.scrollHeight;
-            }
-            
-            // Função para atualizar a barra de progresso
-            function atualizarProgresso(porcentagem, classe, mensagem) {
-                const progressBar = document.getElementById('sicar_progress_bar');
-                const statusMessage = document.getElementById('sicar_status_message');
-                
-                if (progressBar) {
-                    progressBar.style.width = porcentagem + '%';
-                    progressBar.setAttribute('aria-valuenow', porcentagem);
-                    progressBar.textContent = porcentagem + '%';
-                    
-                    // Atualiza a classe se fornecida
-                    if (classe) {
-                        progressBar.className = 'progress-bar progress-bar-striped';
-                        progressBar.classList.add(classe);
-                    }
-                }
-                
-                if (statusMessage && mensagem) {
-                    statusMessage.textContent = mensagem;
-                    
-                    // Ajusta a classe do alerta com base na classe da barra
-                    if (classe) {
-                        statusMessage.className = 'alert mb-0';
-                        if (classe === 'bg-success') {
-                            statusMessage.classList.add('alert-success');
-                        } else if (classe === 'bg-warning') {
-                            statusMessage.classList.add('alert-warning');
-                        } else if (classe === 'bg-danger') {
-                            statusMessage.classList.add('alert-danger');
-                        } else {
-                            statusMessage.classList.add('alert-info');
-                        }
-                    }
-                }
-            }
-            
-            // Função auxiliar para atualizar os diagnósticos
-            function updateDiagnostics(diagnostics) {
-                const container = document.getElementById('diagnostics_accordion');
-                if (!container) return;
-                
-                // Limpa diagnósticos anteriores
-                container.innerHTML = '';
-                
-                // Organiza diagnósticos por categoria
-                const categories = {};
-                Object.keys(diagnostics).forEach(key => {
-                    const parts = key.split('_');
-                    const category = parts.length > 1 ? parts[0] : 'misc';
-                    
-                    if (!categories[category]) {
-                        categories[category] = [];
-                    }
-                    
-                    categories[category].push({
-                        key: key,
-                        ...diagnostics[key]
-                    });
-                });
-                
-                // Cria acordeões para cada categoria
-                let idx = 0;
-                Object.keys(categories).sort().forEach(category => {
-                    const items = categories[category];
-                    const categoryId = `cat-${category}-${idx}`;
-                    const headerId = `head-${category}-${idx}`;
-                    const collapseId = `collapse-${category}-${idx}`;
-                    
-                    // Conta sucessos e falhas
-                    const successes = items.filter(item => item.success).length;
-                    const failures = items.length - successes;
-                    
-                    // Determina a cor com base nos resultados
-                    let headerClass = 'bg-success';
-                    if (failures > 0) {
-                        headerClass = failures === items.length ? 'bg-danger' : 'bg-warning';
-                    }
-                    
-                    // Cria o item de acordeão
-                    const accordionItem = document.createElement('div');
-                    accordionItem.className = 'card mb-2';
-                    
-                    // Cria o cabeçalho
-                    accordionItem.innerHTML = `
-                        <div class="card-header ${headerClass} text-white" id="${headerId}">
-                            <h2 class="mb-0">
-                                <button class="btn btn-link text-white" type="button" data-bs-toggle="collapse" 
-                                        data-bs-target="#${collapseId}" aria-expanded="false" aria-controls="${collapseId}">
-                                    ${category.toUpperCase()}: ${successes}/${items.length} passos completos
-                                </button>
-                            </h2>
-                        </div>
-                        <div id="${collapseId}" class="collapse" aria-labelledby="${headerId}" data-parent="#diagnostics_accordion">
-                            <div class="card-body p-0">
-                                <ul class="list-group list-group-flush">
-                                    ${items.map(item => `
-                                        <li class="list-group-item ${item.success ? 'list-group-item-success' : 'list-group-item-danger'}">
-                                            <strong>${item.key}</strong>: ${item.message || (item.success ? 'Sucesso' : 'Falha')}
-                                        </li>
-                                    `).join('')}
-                                </ul>
-                            </div>
-                        </div>
-                    `;
-                    
-                    container.appendChild(accordionItem);
-                    idx++;
-                });
-            }
-            
-            // Função para processar os resultados da busca
-            function handleResults(result) {
-                console.log("Processando resultados:", result);
-                
-                // Atualiza a barra de progresso para 100%
-                atualizarProgresso(100, 'bg-success', 'Busca concluída com sucesso!');
-                
-                // Esconde o overlay de carregamento
-                $('#loadingOverlay').hide();
-                
-                // Reabilita o botão de busca
-                $('#sicar_buscar').prop('disabled', false);
-                
-                // Exibe informações da propriedade se disponíveis
-                if (result.property) {
-                    $('#sicar_info_container').show();
-                    updatePropertyInfo(result.property);
-                }
-                
-                // Exibe mapa se disponível
-                if (result.map_image) {
-                    $('#sicar_map_container').show();
-                    $('#sicar_map_image').attr('src', 'data:image/png;base64,' + result.map_image);
-                    
-                    // Adiciona log
-                    addToLog('success', 'Mapa da propriedade carregado com sucesso');
-                } else {
-                    addToLog('warning', 'Nenhum mapa disponível para exibição');
-                }
-                
-                // Exibe diagnósticos
-                if (result.diagnostics) {
-                    $('#sicar_diagnostics_container').show();
-                    updateDiagnostics(result.diagnostics);
-                }
-            }
-            
-            // Função para atualizar as informações da propriedade encontrada
-            function updatePropertyInfo(property) {
-                if (!property) return;
-                
-                // Mostra o card de informações
-                const infoCard = document.getElementById('propertyInfoCard');
-                if (infoCard) {
-                    infoCard.style.display = 'block';
-                }
-                
-                // Atualiza os campos com os dados da propriedade
-                const fields = {
-                    'property_state': property.estado || '-',
-                    'property_city': property.municipio || '-',
-                    'property_name': property.nome || '-',
-                    'property_car': property.car || '-',
-                    'property_area': property.area || '-'
-                };
-                
-                // Preenche cada campo
-                Object.keys(fields).forEach(id => {
-                    const element = document.getElementById(id);
-                    if (element) {
-                        element.textContent = fields[id];
-                    }
-                });
-                
-                // Log para depuração
-                addToLog('info', `Propriedade encontrada: ${property.nome}`);
-            }
-        });
         
         // Inicialização e monitoramento da automação
         function updateAutomationStatus(status, progress, message) {

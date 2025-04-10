@@ -738,13 +738,9 @@ def init_sicar_robot():
         os.makedirs(MAPS_DIR, exist_ok=True)
         
         # Configurações do navegador
-        headless = os.environ.get('SICAR_HEADLESS', 'False').lower() in ('true', '1', 't')
+        headless = False  # Sempre False no ambiente de dev
         dev_mode = os.environ.get('SICAR_DEV_MODE', 'True').lower() in ('true', '1', 't')
         browser = os.environ.get('SICAR_BROWSER', 'chrome')
-        
-        # Se estamos em modo de desenvolvedor e não foi forçado headless, mostrar navegador
-        if dev_mode and not headless:
-            headless = False
         
         # Log de configuração
         logger.info(f"Inicializando robô SICAR: browser={browser}, headless={headless}, dev_mode={dev_mode}")
@@ -761,8 +757,12 @@ def init_sicar_robot():
         # Configura o callback para receber logs do robô
         def log_callback(data):
             # Registra os logs no console e no log do servidor
+            if data is None:
+                logger.warning("Received None data in log_callback")
+                return
+                
             if isinstance(data, dict):
-                message = data.get('message', '')
+                message = data.get('message', 'No message')
                 level = data.get('level', 'debug')
                 
                 if level == 'error':
@@ -785,7 +785,14 @@ def init_sicar_robot():
                     if 'progress' in data:
                         app_state['progress'] = data['progress']
             else:
-                logger.debug(str(data))
+                # Se for uma string simples, registra como debug
+                message = str(data)
+                logger.debug(message)
+                app_state['logs'].append({
+                    'timestamp': datetime.now().isoformat(),
+                    'message': message,
+                    'level': 'debug'
+                })
         
         # Registra o callback
         robot.set_log_callback(log_callback)
@@ -1094,7 +1101,7 @@ def sicar_run():
     elif force_headless:
         headless = True
     else:
-        # Se estiver em modo de desenvolvimento, usa visual por padrão
+        # Se estiver em modo de desenvolvimento e não foi forçado headless, mostrar navegador
         headless = not (os.environ.get('SICAR_DEV_MODE', 'false').lower() == 'true')
     
     # Cria o robô
