@@ -36,9 +36,10 @@ class SICARRobot:
         headless (bool): Se True, executa em modo headless (sem interface gráfica)
         dev_mode (bool): Se True, ativa recursos de desenvolvimento
         driver: Instância do webdriver do Selenium
+        log: Instância do logger
     """
     
-    def __init__(self, base_dir, browser="chrome", headless=True, dev_mode=False):
+    def __init__(self, base_dir, browser="chrome", headless=True, dev_mode=False, embed_browser=True):
         """
         Inicializa o robô SICAR
         
@@ -47,14 +48,19 @@ class SICARRobot:
             browser (str): Navegador a ser utilizado (chrome ou firefox)
             headless (bool): Se True, executa em modo headless (sem interface gráfica)
             dev_mode (bool): Se True, ativa recursos de desenvolvimento
+            embed_browser (bool): Se True, configura o navegador para ser exibido em um iframe
         """
         self.base_dir = base_dir
         self.browser = browser
         self.headless = headless
         self.dev_mode = dev_mode
+        self.embed_browser = embed_browser
         self.driver = None
         self.log_callback = None
         self.diagnostics = []
+        self.progresso = 0  # Progresso da automação (0-100)
+        # Inicializa o logger
+        self.log = logging.getLogger('sicar_robot')
         
         # Cria diretório para mapas
         self.maps_dir = os.path.join(base_dir, "static", "maps")
@@ -87,9 +93,9 @@ class SICARRobot:
         
         # Registra no log
         if success:
-            logger.info(f"[{operation}] Sucesso")
+            self.log.info(f"[{operation}] Sucesso")
         else:
-            logger.error(f"[{operation}] Falha: {error_message}")
+            self.log.error(f"[{operation}] Falha: {error_message}")
         
         # Chama o callback se existir
         if self.log_callback:
@@ -139,6 +145,10 @@ class SICARRobot:
                     'safebrowsing.enabled': False
                 }
                 options.add_experimental_option('prefs', prefs)
+                
+                if self.embed_browser:
+                    options.add_argument("--window-position=0,0")
+                    options.add_argument("--window-size=800,600")
                 
                 self.driver = webdriver.Chrome(options=options)
                 self.add_diagnostic("setup_webdriver", True, "Chrome WebDriver inicializado com sucesso")
@@ -650,15 +660,16 @@ class SICARRobot:
 
     def extrair_mapa(self, propriedade):
         """
-        Extrai o mapa da propriedade selecionada
+        Extrai o mapa da propriedade selecionada e prepara visualização interativa
         
         Args:
             propriedade (dict): Informações da propriedade
             
         Returns:
-            str: Caminho do arquivo do mapa ou None se falhar
+            str: URL para visualização do mapa interativo ou None se falhar
         """
         try:
+            self._update_status("Extraindo mapa da propriedade...", 80)
             self.add_diagnostic("extract_map", True, "Extraindo mapa da propriedade")
             
             # Aguarda o carregamento do mapa
@@ -667,71 +678,246 @@ class SICARRobot:
                     EC.presence_of_element_located((By.CSS_SELECTOR, "#mapContainer canvas, .leaflet-container"))
                 )
             except TimeoutException:
+                self._update_status("Erro: Mapa não encontrado", 80)
                 self.add_diagnostic("extract_map", False, "Mapa não encontrado")
                 return None
             
             # Aguarda mais um pouco para o mapa renderizar completamente
             time.sleep(3)
             
-            # Melhora a visualização do mapa (remove controles, destaca limites)
-            self.driver.execute_script("""
-                // Remove controles desnecessários
-                document.querySelectorAll('.leaflet-control-container, .leaflet-top, .leaflet-bottom').forEach(el => {
-                    el.style.display = 'none';
-                });
-                
-                // Destaca os contornos das propriedades
-                document.querySelectorAll('path.leaflet-interactive').forEach(el => {
-                    el.setAttribute('stroke', '#FFCC00');
-                    el.setAttribute('stroke-width', '3');
-                    el.setAttribute('fill-opacity', '0.2');
-                });
+            # Verificar se estamos em uma visualização do tipo Leaflet (mapa interativo)
+            is_leaflet = self.driver.execute_script("""
+                return typeof L !== 'undefined' && document.querySelector('.leaflet-container') !== null;
             """)
             
-            # Captura a tela
-            mapa_filename = f"sicar_map_{int(time.time())}.png"
-            mapa_path = os.path.join(self.maps_dir, mapa_filename)
-            
-            # Encontra o elemento do mapa
-            mapa_element = self.driver.find_element(By.ID, "mapContainer") 
-            if not mapa_element:
-                mapa_element = self.driver.find_element(By.CSS_SELECTOR, ".leaflet-container")
-            
-            # Tira screenshot do elemento
-            mapa_element.screenshot(mapa_path)
-            
-            # Verifica se o arquivo foi criado
-            if not os.path.exists(mapa_path):
-                self.add_diagnostic("extract_map", False, "Falha ao salvar mapa")
-                return None
-            
-            # Tenta melhorar a imagem
-            try:
-                from PIL import Image, ImageEnhance
+            if is_leaflet:
+                # Para mapas Leaflet, vamos melhorar a experiência e preservar a interatividade
+                self.log.info("Mapa interativo (Leaflet) encontrado")
+                self._update_status("Preparando mapa interativo...", 85)
                 
-                # Abre a imagem
-                img = Image.open(mapa_path)
+                # Melhorar a aparência do mapa
+                self.driver.execute_script("""
+                    // Melhorar aparência sem remover funcionalidade
+                    document.querySelectorAll('.leaflet-control').forEach(el => {
+                        // Manter controles mas reduzir opacidade quando não em uso
+                        el.style.opacity = '0.6';
+                        el.addEventListener('mouseover', function() { this.style.opacity = '1'; });
+                        el.addEventListener('mouseout', function() { this.style.opacity = '0.6'; });
+                    });
+                    
+                    // Destacar os contornos das propriedades
+                    document.querySelectorAll('path.leaflet-interactive').forEach(el => {
+                        el.setAttribute('stroke', '#FFCC00');
+                        el.setAttribute('stroke-width', '3');
+                        el.setAttribute('fill-opacity', '0.2');
+                    });
+                    
+                    // Adicionar camada do Google Satellite se disponível
+                    if (typeof L !== 'undefined' && typeof L.gridLayer !== 'undefined') {
+                        try {
+                            var googleSat = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+                                maxZoom: 20,
+                                subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+                                attribution: ' Google'
+                            });
+                            
+                            // Se tivermos acesso ao objeto map, adicionar a camada
+                            if (typeof map !== 'undefined') {
+                                googleSat.addTo(map);
+                                
+                                // Criar um controle de camadas se não existir
+                                if (!document.querySelector('.leaflet-control-layers')) {
+                                    var baseMaps = {
+                                        "Padrão": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
+                                        "Satélite": googleSat
+                                    };
+                                    L.control.layers(baseMaps).addTo(map);
+                                }
+                            }
+                        } catch(e) {
+                            console.error("Erro ao adicionar camada Google:", e);
+                        }
+                    }
+                    
+                    // Adicionar botão de fullscreen
+                    if (typeof L !== 'undefined' && !document.querySelector('.leaflet-control-fullscreen')) {
+                        try {
+                            var fullscreenButton = document.createElement('a');
+                            fullscreenButton.className = 'leaflet-control-fullscreen';
+                            fullscreenButton.innerHTML = '';
+                            fullscreenButton.style.fontSize = '18px';
+                            fullscreenButton.style.backgroundColor = 'white';
+                            fullscreenButton.style.padding = '5px 8px';
+                            fullscreenButton.style.border = '2px solid rgba(0,0,0,0.2)';
+                            fullscreenButton.style.borderRadius = '4px';
+                            fullscreenButton.style.cursor = 'pointer';
+                            
+                            fullscreenButton.onclick = function() {
+                                var mapEl = document.querySelector('.leaflet-container');
+                                if (mapEl) {
+                                    if (!document.fullscreenElement) {
+                                        if (mapEl.requestFullscreen) {
+                                            mapEl.requestFullscreen();
+                                        } else if (mapEl.mozRequestFullScreen) {
+                                            mapEl.mozRequestFullScreen();
+                                        } else if (mapEl.webkitRequestFullscreen) {
+                                            mapEl.webkitRequestFullscreen();
+                                        } else if (mapEl.msRequestFullscreen) {
+                                            mapEl.msRequestFullscreen();
+                                        }
+                                    } else {
+                                        if (document.exitFullscreen) {
+                                            document.exitFullscreen();
+                                        } else if (document.mozCancelFullScreen) {
+                                            document.mozCancelFullScreen();
+                                        } else if (document.webkitExitFullscreen) {
+                                            document.webkitExitFullscreen();
+                                        } else if (document.msExitFullscreen) {
+                                            document.msExitFullscreen();
+                                        }
+                                    }
+                                }
+                            };
+                            
+                            var controlContainer = document.querySelector('.leaflet-top.leaflet-right');
+                            if (controlContainer) {
+                                var controlDiv = document.createElement('div');
+                                controlDiv.className = 'leaflet-control-fullscreen leaflet-bar leaflet-control';
+                                controlDiv.appendChild(fullscreenButton);
+                                controlContainer.appendChild(controlDiv);
+                            }
+                        } catch(e) {
+                            console.error("Erro ao adicionar botão de fullscreen:", e);
+                        }
+                    }
+                """)
                 
-                # Melhora o contraste
-                enhancer = ImageEnhance.Contrast(img)
-                img = enhancer.enhance(1.2)
+                # Capturar a URL atual do mapa para acesso futuro
+                mapa_url = self.driver.current_url
+                self._update_status("Mapa interativo pronto!", 90)
                 
-                # Melhora a saturação
-                enhancer = ImageEnhance.Color(img)
-                img = enhancer.enhance(1.3)
+                # Em vez de retornar apenas uma imagem, retornaremos a URL para o iframe
+                self.log.info(f"Mapa interativo disponível em: {mapa_url}")
+                self.add_diagnostic("extract_map", True, f"Mapa interativo: {mapa_url}")
+                return mapa_url
                 
-                # Salva a imagem melhorada
-                img.save(mapa_path)
-            except:
-                # Falha ao processar a imagem, mas não é crítico
-                pass
-            
-            self.add_diagnostic("extract_map", True, f"Mapa salvo em: {mapa_path}")
-            return os.path.basename(mapa_path)
-            
+            else:
+                # Para mapas não-interativos, continuar com a abordagem anterior
+                self.log.info("Mapa estático encontrado, capturando screenshot")
+                self._update_status("Capturando imagem do mapa...", 85)
+                
+                # Melhora a visualização do mapa (remove controles, destaca limites)
+                self.driver.execute_script("""
+                    // Remove controles desnecessários
+                    document.querySelectorAll('.leaflet-control-container, .leaflet-top, .leaflet-bottom').forEach(el => {
+                        el.style.display = 'none';
+                    });
+                    
+                    // Destaca os contornos das propriedades
+                    document.querySelectorAll('path.leaflet-interactive').forEach(el => {
+                        el.setAttribute('stroke', '#FFCC00');
+                        el.setAttribute('stroke-width', '3');
+                        el.setAttribute('fill-opacity', '0.2');
+                    });
+                """)
+                
+                # Captura a tela
+                mapa_filename = f"sicar_map_{int(time.time())}.png"
+                mapa_path = os.path.join(self.maps_dir, mapa_filename)
+                
+                # Encontra o elemento do mapa
+                mapa_element = None
+                try:
+                    mapa_element = self.driver.find_element(By.ID, "mapContainer")
+                except:
+                    try:
+                        mapa_element = self.driver.find_element(By.CSS_SELECTOR, ".leaflet-container")
+                    except:
+                        self.log.warning("Elemento específico do mapa não encontrado, usando captura de tela inteira")
+                
+                if mapa_element:
+                    # Tira screenshot do elemento
+                    mapa_element.screenshot(mapa_path)
+                else:
+                    # Tira screenshot da tela inteira
+                    self.driver.save_screenshot(mapa_path)
+                
+                # Verifica se o arquivo foi criado
+                if not os.path.exists(mapa_path):
+                    self._update_status("Erro ao salvar mapa", 85)
+                    self.add_diagnostic("extract_map", False, "Falha ao salvar mapa")
+                    return None
+                
+                # Tenta melhorar a imagem
+                try:
+                    from PIL import Image, ImageEnhance
+                    
+                    # Abre a imagem
+                    img = Image.open(mapa_path)
+                    
+                    # Melhora o contraste
+                    enhancer = ImageEnhance.Contrast(img)
+                    img = enhancer.enhance(1.2)
+                    
+                    # Melhora a saturação
+                    enhancer = ImageEnhance.Color(img)
+                    img = enhancer.enhance(1.3)
+                    
+                    # Salva a imagem melhorada
+                    img.save(mapa_path)
+                except:
+                    # Falha ao processar a imagem, mas não é crítico
+                    pass
+                
+                self._update_status("Mapa extraído com sucesso", 90)
+                self.add_diagnostic("extract_map", True, f"Mapa salvo em: {mapa_path}")
+                return os.path.basename(mapa_path)
+                
         except Exception as e:
+            self._update_status(f"Erro ao extrair mapa: {str(e)}", 80)
             self.add_diagnostic("extract_map", False, f"Erro: {str(e)}")
             return None
+    
+    def abrir_sicar(self):
+        """
+        Abre a página principal do SICAR
+        
+        Returns:
+            bool: True se conseguiu abrir a página, False caso contrário
+        """
+        try:
+            # Atualiza status
+            self._update_status("Abrindo página do SICAR...", 10)
+            
+            # URL do SICAR
+            url = "https://consultapublica.car.gov.br/publico/imoveis/index"
+            
+            # Abre a URL
+            self.driver.get(url)
+            
+            # Espera a página carregar
+            self.log.info(f"Aguardando carregamento da página principal do SICAR: {url}")
+            WebDriverWait(self.driver, 20).until(
+                EC.presence_of_element_located((By.TAG_NAME, "body"))
+            )
+            
+            # Verifica se carregou corretamente
+            if "Sistema Nacional de Cadastro Ambiental Rural" in self.driver.page_source:
+                self.log.info("Página do SICAR carregada com sucesso")
+                self._update_status("Página do SICAR carregada", 20)
+                self.add_diagnostic("open_sicar", True, "Página do SICAR carregada com sucesso")
+                return True
+            else:
+                self.log.warning("Página do SICAR carregada, mas conteúdo não parece correto")
+                self._update_status("Erro ao verificar página do SICAR", 20)
+                self.add_diagnostic("open_sicar", False, "Conteúdo da página não parece ser do SICAR")
+                return False
+                
+        except Exception as e:
+            self.log.error(f"Erro ao abrir página do SICAR: {str(e)}")
+            self._update_status("Erro ao abrir página do SICAR", 10)
+            self.add_diagnostic("open_sicar", False, f"Erro: {str(e)}")
+            return False
 
     def close(self):
         """
@@ -883,7 +1069,8 @@ class SICARRobot:
     
     def selecionar_estado(self, estado):
         """
-        Seleciona um estado no dropdown do SICAR
+        Seleciona um estado no mapa do SICAR.
+        Implementação que passa o cursor sobre o estado e clica quando aparecer o balão.
         
         Args:
             estado (str): Nome do estado
@@ -892,194 +1079,378 @@ class SICARRobot:
             bool: True se o estado foi selecionado com sucesso, False caso contrário
         """
         try:
-            # Normaliza o nome do estado
+            # Normaliza o nome do estado para evitar problemas com acentos
             estado_normalizado = unidecode(estado.upper())
-            self.log.info(f"Tentando selecionar estado: {estado}")
+            estado_sigla = self._mapear_estado_para_sigla(estado)
             
-            # Captura screenshot para diagnóstico antes de iniciar
+            self.log.info(f"Tentando selecionar estado: {estado} (sigla: {estado_sigla})")
+            self._update_status(f"Selecionando estado: {estado}", 30)
             self.save_screenshot("pre_selecao_estado.png")
+
+            # Localizações aproximadas do cursor para estados populares
+            # Valores em porcentagem da tela
+            coordenadas_estados = {
+                "PR": {"x": 0.52, "y": 0.70},    # Paraná
+                "SP": {"x": 0.55, "y": 0.63},    # São Paulo
+                "SC": {"x": 0.51, "y": 0.75},    # Santa Catarina
+                "RS": {"x": 0.50, "y": 0.85},    # Rio Grande do Sul
+                "MG": {"x": 0.60, "y": 0.55},    # Minas Gerais
+                # Adicionar mais estados conforme necessário
+            }
             
-            # ABORDAGEM 1: Interface dinâmica do Leaflet do SICAR
-            # No SICAR, os estados são mostrados como camadas no mapa Leaflet
+            # Se não temos coordenadas específicas para o estado, usar abordagem genérica
+            if estado_sigla not in coordenadas_estados:
+                self.log.warning(f"Coordenadas para {estado_sigla} não definidas, usando método alternativo")
+                self._update_status(f"Estado {estado} não mapeado, tentando alternativa", 30)
+                return self._selecionar_estado_generico(estado, estado_sigla)
+            
+            # Obter as coordenadas para o estado alvo
+            coords = coordenadas_estados[estado_sigla]
+            
+            # Obter dimensões da janela do navegador
+            viewport_size = self.driver.execute_script("""
+                return {
+                    width: window.innerWidth,
+                    height: window.innerHeight
+                };
+            """)
+            
+            # Calcular coordenadas absolutas
+            x_abs = int(coords["x"] * viewport_size["width"])
+            y_abs = int(coords["y"] * viewport_size["height"])
+            
+            self.log.info(f"Movendo cursor para coordenadas: x={x_abs}, y={y_abs}")
+            self._update_status(f"Movendo cursor sobre o estado {estado}", 35)
+            
+            # Remover qualquer marcador anterior (caso tenha)
+            self.driver.execute_script("""
+                var oldMarkers = document.querySelectorAll('.cursor-marker');
+                oldMarkers.forEach(function(marker) {
+                    marker.remove();
+                });
+            """)
+            
+            # Criar marcador visual para debug
+            self.driver.execute_script(f"""
+                var marker = document.createElement('div');
+                marker.className = 'cursor-marker';
+                marker.style.position = 'absolute';
+                marker.style.left = '{x_abs}px';
+                marker.style.top = '{y_abs}px';
+                marker.style.width = '10px';
+                marker.style.height = '10px';
+                marker.style.backgroundColor = 'red';
+                marker.style.borderRadius = '50%';
+                marker.style.zIndex = '9999';
+                marker.style.pointerEvents = 'none'; // Para não interferir nos cliques
+                document.body.appendChild(marker);
+            """)
+            
+            time.sleep(1)
+            self.save_screenshot("marcador_posicao.png")
+            
+            # Resetar posição do mouse (importante para garantir posição relativa correta)
+            actions = ActionChains(self.driver)
+            actions.move_to_element(self.driver.find_element(By.TAG_NAME, "body"))
+            actions.perform()
+            
+            # Encontrar o mapa SVG ou elemento de mapa principal
+            mapa_element = None
             try:
-                # Espera alguns segundos para o mapa carregar
-                time.sleep(5)
-                
-                # Tenta encontrar e clicar no elemento que abre o menu de estados
-                # Pelo código HTML, podemos ver que há botões e controles do Leaflet
-                menu_triggers = [
-                    "//button[contains(@class, 'easy-button')]",
-                    "//a[contains(@class, 'leaflet-control')]",
-                    "//div[contains(@class, 'leaflet-control')]//a",
-                    "//div[@id='mapa-imoveis']//button",
-                    "//div[contains(@class, 'menu')]//button"
+                # Tentar diferentes seletores para o mapa
+                seletores = [
+                    "svg", 
+                    ".leaflet-container", 
+                    "#mapContainer", 
+                    "map",
+                    "img[usemap]"
                 ]
                 
-                clicked = False
-                for trigger in menu_triggers:
+                for seletor in seletores:
                     try:
-                        elementos = self.driver.find_elements(By.XPATH, trigger)
-                        for elem in elementos:
-                            if elem.is_displayed() and elem.is_enabled():
-                                self.log.info(f"Clicando em possível controle do mapa: {elem.get_attribute('class')}")
-                                elem.click()
-                                time.sleep(1)  # Espera para menu abrir
-                                clicked = True
-                    except Exception as e:
-                        self.log.warning(f"Erro ao tentar clicar no trigger {trigger}: {str(e)}")
-                
-                # Procura na página por elementos contendo o nome do estado ou sua sigla
-                estado_sigla = self._mapear_estado_para_sigla(estado)
-                seletores_estado = [
-                    f"//div[contains(text(), '{estado}')]",
-                    f"//div[contains(translate(text(), 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), '{estado.upper()}')]",
-                    f"//a[contains(text(), '{estado}')]",
-                    f"//span[contains(text(), '{estado}')]",
-                    f"//li[contains(text(), '{estado}')]",
-                    f"//div[contains(text(), '{estado_sigla}')]",
-                    f"//a[contains(text(), '{estado_sigla}')]",
-                    f"//option[contains(text(), '{estado}')]"
-                ]
-                
-                for seletor in seletores_estado:
-                    try:
-                        elementos = self.driver.find_elements(By.XPATH, seletor)
-                        for elem in elementos:
-                            if elem.is_displayed():
-                                self.log.info(f"Encontrado elemento com texto do estado: {elem.text}")
-                                # Destaca e clica no elemento
-                                self.driver.execute_script("arguments[0].scrollIntoView(true);", elem)
-                                self.driver.execute_script("arguments[0].style.border='3px solid red'", elem)
-                                time.sleep(0.5)
-                                elem.click()
-                                time.sleep(2)
-                                self.add_diagnostic("select_state", True, f"Estado {estado} selecionado via texto")
-                                return True
-                    except Exception as e:
-                        self.log.warning(f"Erro ao processar seletor {seletor}: {str(e)}")
+                        mapa_element = self.driver.find_element(By.CSS_SELECTOR, seletor)
+                        if mapa_element and mapa_element.is_displayed():
+                            self.log.info(f"Elemento de mapa encontrado: {seletor}")
+                            break
+                    except:
+                        pass
+            except:
+                self.log.warning("Não foi possível encontrar o elemento do mapa, usando body")
+                mapa_element = self.driver.find_element(By.TAG_NAME, "body")
             
-            except Exception as e:
-                self.log.error(f"Erro na abordagem 1 (Leaflet): {str(e)}")
-            
-            # ABORDAGEM 2: Manipulação via JavaScript
-            try:
-                # Utiliza o imoveis.js que vimos no código-fonte do SICAR
-                script = """
-                // Tenta acessar a instância do mapa Leaflet e suas camadas
-                try {
-                    // Verifica se existem variáveis globais relacionadas ao mapa
-                    if (typeof map !== 'undefined') {
-                        // Registra resultado
-                        console.log('Instância do mapa encontrada');
-                        
-                        // Tenta obter camadas
-                        var layers = [];
-                        if (map.layers) layers = map.layers;
-                        else if (map._layers) layers = Object.values(map._layers);
-                        
-                        // Log das camadas
-                        console.log('Camadas disponíveis: ' + layers.length);
-                        
-                        // Busca em variáveis globais conhecidas usadas pelo SICAR
-                        if (typeof ufs !== 'undefined') {
-                            console.log('Lista de UFs encontrada');
-                            return true;
-                        }
-                        
-                        // Tenta simular clique no mapa para ativar menus
-                        if (map.fire) {
-                            map.fire('click', {latlng: L.latLng(-15.77, -47.92)});
-                            return true;
-                        }
-                    }
-                } catch(e) {
-                    console.error('Erro ao manipular mapa:', e);
-                }
+            # Obter posição do mapa
+            if mapa_element:
+                mapa_rect = self.driver.execute_script("""
+                    var rect = arguments[0].getBoundingClientRect();
+                    return {
+                        left: rect.left,
+                        top: rect.top,
+                        width: rect.width,
+                        height: rect.height
+                    };
+                """, mapa_element)
                 
-                // Tenta encontrar e clicar em elementos com nomes comuns
-                var elements = document.querySelectorAll('a, button, div, span');
-                for (var i = 0; i < elements.length; i++) {
-                    var text = elements[i].innerText || elements[i].textContent;
-                    if (text) {
-                        text = text.toUpperCase();
-                        if (text.includes('ESTADOS') || text.includes('UF') || 
-                            text.includes('CAMADA') || text.includes('LAYER')) {
-                            elements[i].click();
-                            console.log('Clicado em: ' + text);
-                            return true;
-                        }
+                # Ajustar coordenadas relativas ao mapa, não à janela inteira
+                x_rel = int(coords["x"] * mapa_rect["width"]) + mapa_rect["left"]
+                y_rel = int(coords["y"] * mapa_rect["height"]) + mapa_rect["top"]
+                
+                self.log.info(f"Coordenadas ajustadas ao mapa: x={x_rel}, y={y_rel}")
+                
+                # Atualizar o marcador para posição correta
+                self.driver.execute_script(f"""
+                    var markers = document.querySelectorAll('.cursor-marker');
+                    if (markers.length > 0) {{
+                        markers[0].style.left = '{x_rel}px';
+                        markers[0].style.top = '{y_rel}px';
+                    }}
+                """)
+                
+                # Usar moveTo em vez de moveByOffset para maior precisão
+                actions = ActionChains(self.driver)
+                actions.move_to_element_with_offset(mapa_element, 
+                                                   int(coords["x"] * mapa_rect["width"]), 
+                                                   int(coords["y"] * mapa_rect["height"]))
+                actions.perform()
+            else:
+                # Usar moveByOffset como fallback
+                actions = ActionChains(self.driver)
+                actions.move_by_offset(x_abs, y_abs).perform()
+            
+            # Aguardar o balão aparecer
+            self.log.info("Aguardando balão aparecer...")
+            self._update_status("Aguardando o balão de seleção aparecer...", 40)
+            time.sleep(3)
+            self.save_screenshot("hover_estado.png")
+            
+            # Verificar se há tooltip/balão visível
+            tooltip_visible = self.driver.execute_script("""
+                var tooltips = document.querySelectorAll('.tooltip, [role="tooltip"], [data-tooltip], .leaflet-tooltip, .ui-tooltip, .tippy-box');
+                var visibleTooltip = false;
+                
+                for (var i = 0; i < tooltips.length; i++) {
+                    var tooltip = tooltips[i];
+                    if (tooltip.offsetParent !== null) { // Elemento visível
+                        visibleTooltip = true;
+                        // Destacar o tooltip
+                        tooltip.style.border = '2px solid red';
+                        break;
                     }
                 }
                 
-                return false;
-                """
+                // Se não encontrou tooltips específicos, procurar qualquer elemento que apareceu após o hover
+                if (!visibleTooltip) {
+                    var allElements = document.querySelectorAll('*');
+                    for (var i = 0; i < allElements.length; i++) {
+                        var el = allElements[i];
+                        var styles = window.getComputedStyle(el);
+                        
+                        // Elementos que podem ser tooltips geralmente têm estas características
+                        if (el.offsetParent !== null && // Visível
+                            (styles.position === 'absolute' || styles.position === 'fixed') && // Posicionado
+                            styles.zIndex && parseInt(styles.zIndex) > 1) { // Com z-index alto
+                            
+                            // Verificar se contém o nome do estado
+                            if (el.textContent && (el.textContent.includes('Paraná') || 
+                                                  el.textContent.includes('Parana') || 
+                                                  el.textContent.includes('PARANÁ') || 
+                                                  el.textContent.includes('PR'))) {
+                                visibleTooltip = true;
+                                el.style.border = '2px solid red';
+                                break;
+                            }
+                        }
+                    }
+                }
                 
-                resultado = self.driver.execute_script(script)
-                if resultado:
-                    time.sleep(3)  # Aguarda ações do JS
-                    self.add_diagnostic("select_state", True, "Interação via JavaScript realizada")
+                return visibleTooltip;
+            """)
+            
+            if tooltip_visible:
+                self.log.info("Balão detectado, clicando...")
+                self._update_status("Balão detectado, clicando no estado", 45)
+                # 2. Clicar na posição atual (onde está o balão)
+                actions.click().perform()
+                time.sleep(3)
+                self.save_screenshot("apos_clique_balao.png")
+                
+                # Verificar se houve navegação para página do estado
+                url_alterada = self.driver.execute_script("""
+                    return window.location.href.includes('estado=PR') || 
+                           window.location.href.includes('uf=PR') || 
+                           window.location.href.toLowerCase().includes('parana');
+                """)
+                
+                # Verificar se apareceu alguma indicação de seleção de município
+                selecao_municipio = self.driver.execute_script("""
+                    return document.body.innerHTML.includes('município') || 
+                           document.body.innerHTML.includes('municipio') || 
+                           document.body.innerHTML.includes('Douradina');
+                """)
+                
+                if url_alterada or selecao_municipio:
+                    self.log.info("Estado selecionado com sucesso!")
+                    self._update_status("Estado selecionado com sucesso", 50)
+                    return True
+                else:
+                    self.log.warning("Clique realizado, mas sem indicação clara de sucesso")
+                    self._update_status("Verificando resultado da seleção", 45)
                     
-                    # Após a interação JS, tenta clicar em elementos que contenham o nome do estado
-                    for seletor in seletores_estado:
+                    # Verificar mudanças visuais que possam indicar seleção bem-sucedida
+                    mudanca_visual = self._verificar_mudanca_visual()
+                    if mudanca_visual:
+                        self.log.info("Mudança visual detectada, considerando seleção bem-sucedida")
+                        self._update_status("Estado selecionado com sucesso", 50)
+                        return True
+                    
+                    # Tentar expandir a área de busca e tentar novamente
+                    self.log.info("Tentando clicar em pontos próximos...")
+                    self._update_status("Tentando clicar em pontos próximos", 40)
+                    
+                    # Matriz de pontos ao redor da coordenada original para tentar novos cliques
+                    offsets = [
+                        {"dx": -10, "dy": -10},
+                        {"dx": 0, "dy": -10},
+                        {"dx": 10, "dy": -10},
+                        {"dx": -10, "dy": 0},
+                        {"dx": 10, "dy": 0},
+                        {"dx": -10, "dy": 10},
+                        {"dx": 0, "dy": 10},
+                        {"dx": 10, "dy": 10}
+                    ]
+                    
+                    for i, offset in enumerate(offsets):
                         try:
-                            elementos = self.driver.find_elements(By.XPATH, seletor)
-                            for elem in elementos:
-                                if elem.is_displayed():
-                                    elem.click()
-                                    time.sleep(2)
-                                    self.add_diagnostic("select_state", True, f"Estado {estado} selecionado após JS")
-                                    return True
+                            # Calcular nova posição
+                            new_x = x_abs + offset["dx"]
+                            new_y = y_abs + offset["dy"]
+                            
+                            # Mover para a nova posição
+                            actions = ActionChains(self.driver)
+                            actions.move_by_offset(new_x - x_abs, new_y - y_abs).perform()
+                            time.sleep(2)
+                            
+                            # Clicar
+                            actions.click().perform()
+                            time.sleep(3)
+                            self.save_screenshot(f"tentativa_clique_{i+1}.png")
+                            
+                            # Verificar se houve sucesso
+                            if self._verificar_mudanca_visual():
+                                self.log.info(f"Seleção de estado realizada na tentativa {i+1}")
+                                self._update_status("Estado selecionado com sucesso", 50)
+                                return True
+                        except Exception as e:
+                            self.log.warning(f"Erro na tentativa {i+1}: {str(e)}")
+            else:
+                self.log.warning("Balão não detectado após hover")
+                self._update_status("Balão não detectado, tentando clique direto", 40)
+                
+                # Tentar clique direto mesmo sem balão
+                actions.click().perform()
+                time.sleep(3)
+                self.save_screenshot("clique_sem_balao.png")
+                
+                # Verificar se houve sucesso
+                if self._verificar_mudanca_visual():
+                    self.log.info("Estado possivelmente selecionado após clique direto")
+                    self._update_status("Estado selecionado com sucesso", 50)
+                    return True
+            
+            # Se chegamos aqui, fazer uma última tentativa direta
+            self._update_status("Tentando método alternativo para selecionar estado", 35)
+            return self._selecionar_estado_generico(estado, estado_sigla)
+            
+        except Exception as e:
+            self.log.error(f"Erro ao tentar selecionar estado: {str(e)}")
+            self._update_status(f"Erro ao selecionar estado: {str(e)}", 30)
+            self.save_screenshot("erro_selecao_estado.png")
+            return False
+                
+    def _selecionar_estado_generico(self, estado, estado_sigla):
+        """
+        Método alternativo para selecionar estados quando a abordagem principal falha
+        
+        Args:
+            estado (str): Nome do estado
+            estado_sigla (str): Sigla do estado
+            
+        Returns:
+            bool: True se o estado foi selecionado com sucesso, False caso contrário
+        """
+        try:
+            self.log.info("Tentando método alternativo para selecionar estado")
+            
+            # 1. Procurar por elementos que contenham o texto do estado
+            elementos = self.driver.find_elements(By.XPATH, 
+                f"//*[contains(text(),'{estado}') or contains(text(),'{estado_sigla}')]")
+            
+            for elem in elementos:
+                if elem.is_displayed():
+                    self.log.info(f"Elemento com texto do estado encontrado: {elem.text}")
+                    
+                    # Destacar visualmente
+                    self.driver.execute_script("""
+                        arguments[0].style.border = '3px solid red';
+                        arguments[0].scrollIntoView({block: 'center'});
+                    """, elem)
+                    
+                    time.sleep(1)
+                    self.save_screenshot("elemento_estado_encontrado.png")
+                    
+                    # Tentar clicar
+                    try:
+                        elem.click()
+                        time.sleep(3)
+                        self.save_screenshot("apos_clique_elemento.png")
+                        
+                        if self._verificar_mudanca_visual():
+                            self.log.info("Estado selecionado via texto")
+                            self._update_status("Estado selecionado com sucesso", 50)
+                            return True
+                    except Exception as e:
+                        self.log.warning(f"Erro ao clicar no elemento: {str(e)}")
+                        
+                        # Tentar via JavaScript
+                        try:
+                            self.driver.execute_script("arguments[0].click();", elem)
+                            time.sleep(3)
+                            self.save_screenshot("apos_clique_js.png")
+                            
+                            if self._verificar_mudanca_visual():
+                                self.log.info("Estado selecionado via clique JS")
+                                self._update_status("Estado selecionado com sucesso", 50)
+                                return True
                         except:
                             pass
             
-            except Exception as e:
-                self.log.error(f"Erro na abordagem 2 (JavaScript): {str(e)}")
-            
-            # ABORDAGEM 3: Tentativa de injeção direta de coordenadas no mapa
-            try:
-                # Tenta usar o searchButton do SICAR para ir direto para coordenadas
-                search_js = """
-                try {
-                    // Verifica se o campo de busca está disponível
-                    var searchField = document.querySelector('.leaflet-control-search input');
-                    if (searchField) {
-                        searchField.value = "-23.276064, -53.266292";
-                        var event = new Event('change');
-                        searchField.dispatchEvent(event);
+            # 2. Última alternativa: manipular variáveis JavaScript
+            js_resultado = self.driver.execute_script(f"""
+                try {{
+                    if (typeof window.estado !== 'undefined') {{
+                        window.estado = '{estado}';
                         return true;
-                    }
-                    
-                    // Tenta acessar a API do mapa
-                    if (typeof map !== 'undefined') {
-                        // Tenta ir diretamente para as coordenadas
-                        map.setView([-23.276064, -53.266292], 15);
+                    }}
+                    if (typeof window.uf !== 'undefined') {{
+                        window.uf = '{estado_sigla}';
                         return true;
-                    }
-                    
+                    }}
                     return false;
-                } catch(e) {
-                    console.error('Erro ao manipular busca:', e);
+                }} catch(e) {{
                     return false;
-                }
-                """
-                
-                resultado_search = self.driver.execute_script(search_js)
-                if resultado_search:
-                    time.sleep(3)
-                    self.add_diagnostic("select_state", True, "Coordenadas injetadas diretamente no mapa")
-                    # Assumimos que estamos na área correta agora
-                    return True
+                }}
+            """)
             
-            except Exception as e:
-                self.log.error(f"Erro na abordagem 3 (Coordenadas): {str(e)}")
+            if js_resultado:
+                self.log.info("Variáveis JS manipuladas com sucesso")
+                time.sleep(2)
+                self._update_status("Estado selecionado com sucesso", 50)
+                return True
             
-            # Captura screenshot final para diagnóstico
-            self.save_screenshot("falha_selecao_estado.png")
-            self.add_diagnostic("select_state", False, f"Falha ao selecionar o estado {estado}")
+            self.log.error("Todas as tentativas de selecionar estado falharam")
             return False
             
         except Exception as e:
-            self.add_diagnostic("select_state", False, f"Erro: {str(e)}")
+            self.log.error(f"Erro no método genérico: {str(e)}")
             return False
 
     def selecionar_municipio(self, municipio):
@@ -1183,92 +1554,6 @@ class SICARRobot:
                 except:
                     pass
             
-            # Se não encontrou nenhum seletor, procura por outros tipos de elementos de UI
-            if not municipio_select:
-                self.add_diagnostic("select_municipality", True, "Tentando encontrar controles alternativos para município")
-                try:
-                    # Procura campos de texto que possam receber o nome do município
-                    inputs = self.driver.find_elements(By.XPATH, 
-                        "//input[contains(@id, 'munic') or contains(@name, 'munic') or contains(@placeholder, 'munic')]")
-                    
-                    if inputs:
-                        input_municipio = inputs[0]
-                        input_municipio.clear()
-                        input_municipio.send_keys(municipio)
-                        time.sleep(1)
-                        
-                        # Pressiona Enter para submeter
-                        input_municipio.send_keys(Keys.ENTER)
-                        time.sleep(2)
-                        
-                        self.add_diagnostic("select_municipality", True, f"Município {municipio} inserido via campo de texto")
-                        
-                        # Tenta clicar em qualquer botão de busca/pesquisa disponível
-                        try:
-                            botoes = self.driver.find_elements(By.XPATH, 
-                                "//button[contains(text(), 'Buscar') or contains(text(), 'Pesquisar') or contains(@class, 'btn-primary')]")
-                            if botoes:
-                                botoes[0].click()
-                                time.sleep(2)
-                        except:
-                            pass
-                            
-                        return True
-                except Exception as e:
-                    self.add_diagnostic("select_municipality", False, f"Erro ao buscar controles alternativos: {str(e)}")
-                
-                # Tenta última abordagem via JavaScript
-                try:
-                    script = """
-                        var municipioText = arguments[0];
-                        
-                        // Procura por qualquer input relacionado a município
-                        var input = document.querySelector('input[id*="munic" i], input[name*="munic" i], input[placeholder*="munic" i]');
-                        if (input) {
-                            input.value = municipioText;
-                            input.dispatchEvent(new Event('input', { bubbles: true }));
-                            input.dispatchEvent(new Event('change', { bubbles: true }));
-                            
-                            // Tenta clicar em um botão de busca
-                            setTimeout(function() {
-                                var botao = document.querySelector('button[type="submit"], .btn-primary, button:contains("Buscar"), button:contains("Pesquisar")');
-                                if (botao) botao.click();
-                            }, 500);
-                            
-                            return true;
-                        }
-                        
-                        // Procura por qualquer elemento clicável com o nome do município
-                        var elementos = document.querySelectorAll('a, button, div, span, li');
-                        for (var i = 0; i < elementos.length; i++) {
-                            if (elementos[i].innerText.toUpperCase().includes(municipioText.toUpperCase())) {
-                                elementos[i].click();
-                                return true;
-                            }
-                        }
-                        
-                        return false;
-                    """
-                    
-                    result = self.driver.execute_script(script, municipio)
-                    if result:
-                        self.add_diagnostic("select_municipality", True, f"Município {municipio} selecionado via JavaScript")
-                        time.sleep(2)
-                        return True
-                except:
-                    pass
-                
-                # Se chegou aqui, não conseguiu encontrar nenhum controle para município
-                self.add_diagnostic("select_municipality", False, "Seletor de municípios não encontrado")
-                
-                # Salva um screenshot para diagnóstico
-                try:
-                    self.save_screenshot("erro_selecionar_municipio.png")
-                except:
-                    pass
-                    
-                return False
-            
             # Verifica se o seletor está habilitado
             if not municipio_select.is_enabled():
                 self.add_diagnostic("select_municipality", True, "Seletor de municípios desabilitado, aguardando...")
@@ -1315,6 +1600,7 @@ class SICARRobot:
                 # 1. Texto exato
                 try:
                     select_obj.select_by_visible_text(municipio)
+                    time.sleep(1)
                     self.add_diagnostic("select_municipality", True, f"Município {municipio} selecionado por texto exato")
                     time.sleep(2)
                 except:
@@ -1361,7 +1647,7 @@ class SICARRobot:
                         var municipioTexto = arguments[1].toUpperCase();
                         
                         function removerAcentos(texto) {
-                            return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+                            return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
                         }
                         
                         // Tenta encontrar uma opção que contenha o texto do município
@@ -1428,7 +1714,6 @@ class SICARRobot:
                                     return true;
                                 }
                             }
-                            
                             return false;
                         """)
                     except:
@@ -1443,16 +1728,51 @@ class SICARRobot:
             self.add_diagnostic("select_municipality", False, f"Erro: {str(e)}")
             return False
 
+    def _update_status(self, message, progress=None):
+        """
+        Atualiza o status da automação e envia para o callback, se disponível
+        
+        Args:
+            message (str): Mensagem de status
+            progress (int): Progresso (0-100)
+        """
+        if progress is not None:
+            self.progresso = progress
+        
+        # Registrar no log
+        self.log.info(f"Status: {message} ({self.progresso}%)")
+        
+        # Adiciona ao diagnóstico
+        self.add_diagnostic("status_update", True, {
+            "message": message,
+            "progress": self.progresso
+        })
+        
+        # Se temos uma função de callback, envia o status para ela
+        if self.log_callback:
+            try:
+                self.log_callback({
+                    "type": "status",
+                    "message": message,
+                    "progress": self.progresso,
+                    "timestamp": datetime.now().isoformat()
+                })
+            except Exception as e:
+                self.log.error(f"Erro ao enviar status via callback: {str(e)}")
+
     def _mapear_estado_para_sigla(self, estado):
         """
-        Mapeia o nome do estado para sua sigla
+        Mapeia o nome do estado para sua sigla de duas letras
         
         Args:
             estado (str): Nome do estado
             
         Returns:
-            str: Sigla do estado ou None se não encontrado
+            str: Sigla do estado (UF)
         """
+        # Normalizar o nome do estado (remover acentos e caixa alta)
+        estado_norm = unidecode(estado.upper())
+        
         mapa_estados = {
             'ACRE': 'AC',
             'ALAGOAS': 'AL',
@@ -1483,19 +1803,90 @@ class SICARRobot:
             'TOCANTINS': 'TO'
         }
         
-        # Normaliza o texto (remove acentos, tudo maiúsculo)
-        estado_norm = unidecode(estado.upper())
-        
-        # Busca correspondência exata
-        if estado_norm in mapa_estados:
-            return mapa_estados[estado_norm]
-            
-        # Busca correspondência parcial
+        # Procurar pelo estado no mapa
         for nome, sigla in mapa_estados.items():
-            if nome in estado_norm or estado_norm in nome:
+            if estado_norm == nome or estado_norm == sigla:
                 return sigla
+            elif estado_norm in nome:
+                return sigla
+        
+        # Fallback para o valor original se não encontrou correspondência
+        if len(estado_norm) == 2:
+            return estado_norm  # Já é uma sigla UF
+        
+        self.log.warning(f"Não foi possível mapear o estado '{estado}' para uma sigla UF")
+        return estado_norm[:2]  # Retorna as duas primeiras letras como última tentativa
+
+    def _verificar_mudanca_visual(self):
+        """
+        Verifica se houve alguma mudança visual na página que indique interação bem-sucedida
+        
+        Returns:
+            bool: True se houve mudança visual, False caso contrário
+        """
+        try:
+            # Capturar elementos destacados
+            elementos_destacados = self.driver.execute_script("""
+                var destacados = [];
                 
-        return None
+                // Verificar elementos com estilos que indiquem seleção
+                document.querySelectorAll('*').forEach(function(el) {
+                    var computedStyle = window.getComputedStyle(el);
+                    
+                    // Verificar propriedades que indicam destaque
+                    if ((computedStyle.backgroundColor && 
+                         computedStyle.backgroundColor !== 'rgba(0, 0, 0, 0)' && 
+                         computedStyle.backgroundColor !== 'rgb(255, 255, 255)') ||
+                        (computedStyle.borderColor && 
+                         computedStyle.borderWidth && 
+                         parseInt(computedStyle.borderWidth) >= 2)) {
+                        
+                        destacados.push({
+                            tag: el.tagName,
+                            text: el.innerText ? el.innerText.substring(0, 50) : '',
+                            id: el.id,
+                            class: el.className
+                        });
+                    }
+                });
+                
+                return {
+                    encontrados: destacados.length > 0,
+                    quantidade: destacados.length,
+                    elementos: destacados.slice(0, 5)  // Retornar apenas os 5 primeiros para não sobrecarregar
+                };
+            """)
+            
+            if elementos_destacados.get('encontrados', False):
+                self.log.info(f"Encontrados {elementos_destacados.get('quantidade')} elementos destacados")
+                self.log.info(f"Primeiros elementos: {elementos_destacados.get('elementos')}")
+                return True
+                
+            # Verificar se surgiram novos elementos na página
+            novos_elementos = self.driver.execute_script("""
+                var conteudo = document.body.innerHTML;
+                
+                // Verificar palavras-chave que indicariam a próxima etapa
+                var palavrasChave = ['município', 'municipio', 'Selecione o município', 'propriedade', 'imóvel'];
+                
+                var encontradas = palavrasChave.filter(function(palavra) {
+                    return conteudo.includes(palavra);
+                });
+                
+                return {
+                    encontrados: encontradas.length > 0,
+                    palavras: encontradas
+                };
+            """)
+            
+            if novos_elementos.get('encontrados', False):
+                self.log.info(f"Encontradas palavras-chave que indicam próxima etapa: {novos_elementos.get('palavras')}")
+                return True
+                
+            return False
+        except Exception as e:
+            self.log.warning(f"Erro ao verificar mudança visual: {str(e)}")
+            return False
 
 # Exemplo de uso se executado diretamente
 if __name__ == "__main__":
@@ -1509,7 +1900,7 @@ if __name__ == "__main__":
     
     # Inicializa o robô
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    robot = SICARRobot(base_dir=base_dir, headless=False)
+    robot = SICARRobot(base_dir=base_dir, headless=False, embed_browser=True)
     
     # Executa o teste
     try:

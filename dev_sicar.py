@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-EroMaps - Interface de Desenvolvedor do SICAR
+EroView - Interface de Desenvolvedor do SICAR
 =============================================
 
 Este script implementa uma interface web para visualizar o processo de extração
@@ -733,39 +733,67 @@ def init_sicar_robot():
     Returns:
         SICARRobot: Instância configurada do robô
     """
-    # Configuração do ambiente - valores padrão
-    dev_mode = os.environ.get('SICAR_DEV_MODE', 'true').lower() in ('true', '1', 't')
-    force_visual = os.environ.get('SICAR_FORCE_VISUAL', 'false').lower() in ('true', '1', 't')
-    force_headless = os.environ.get('SICAR_FORCE_HEADLESS', 'false').lower() in ('true', '1', 't')
-    
-    # Define o modelo de visualização
-    headless = force_headless or (not dev_mode and not force_visual)
-    
-    # Cria e configura o robô
-    robot = SICARRobot(
-        base_dir=str(BASE_DIR),
-        browser="chrome",
-        headless=headless,
-        dev_mode=dev_mode
-    )
-    
-    def log_callback(message, level):
-        """Callback para receber logs do robô"""
-        add_log(message, level)
-    
-    robot.set_log_callback(log_callback)
-    
-    # Inicia o navegador
-    if not robot._setup_webdriver():
-        error_message = "Falha ao inicializar o navegador"
-        add_log(error_message, 'error')
-        raise Exception(error_message)
-    
-    # Ajusta o tamanho da janela para garantir que todos os elementos sejam visíveis
-    if not headless:
-        robot.driver.set_window_size(1366, 768)
-    
-    return robot
+    try:
+        # Cria o diretório base
+        os.makedirs(MAPS_DIR, exist_ok=True)
+        
+        # Configurações do navegador
+        headless = os.environ.get('SICAR_HEADLESS', 'False').lower() in ('true', '1', 't')
+        dev_mode = os.environ.get('SICAR_DEV_MODE', 'True').lower() in ('true', '1', 't')
+        browser = os.environ.get('SICAR_BROWSER', 'chrome')
+        
+        # Se estamos em modo de desenvolvedor e não foi forçado headless, mostrar navegador
+        if dev_mode and not headless:
+            headless = False
+        
+        # Log de configuração
+        logger.info(f"Inicializando robô SICAR: browser={browser}, headless={headless}, dev_mode={dev_mode}")
+        
+        # Instancia o robô
+        robot = SICARRobot(
+            base_dir=str(BASE_DIR),
+            browser=browser,
+            headless=headless,
+            dev_mode=dev_mode,
+            embed_browser=True  # Configurar para usar no iframe
+        )
+        
+        # Configura o callback para receber logs do robô
+        def log_callback(data):
+            # Registra os logs no console e no log do servidor
+            if isinstance(data, dict):
+                message = data.get('message', '')
+                level = data.get('level', 'debug')
+                
+                if level == 'error':
+                    logger.error(message)
+                elif level == 'warning':
+                    logger.warning(message)
+                else:
+                    logger.debug(message)
+                
+                # Adiciona ao histórico de logs
+                app_state['logs'].append({
+                    'timestamp': datetime.now().isoformat(),
+                    'message': message,
+                    'level': level
+                })
+                
+                # Se for status, atualiza o status global
+                if data.get('type') == 'status':
+                    app_state['message'] = message
+                    if 'progress' in data:
+                        app_state['progress'] = data['progress']
+            else:
+                logger.debug(str(data))
+        
+        # Registra o callback
+        robot.set_log_callback(log_callback)
+        
+        return robot
+    except Exception as e:
+        logger.error(f"Erro ao inicializar robô SICAR: {str(e)}")
+        return None
 
 def add_log(message: str, level: str = 'info', step: str = None):
     """
@@ -1283,5 +1311,5 @@ if __name__ == '__main__':
     host = os.environ.get('HOST', '0.0.0.0')
     debug = os.environ.get('FLASK_DEBUG', 'true').lower() == 'true'
     
-    print(f" * EroMaps Dev SICAR iniciado em http://{host}:{port}")
+    logger.info(f"EroView Dev SICAR iniciado em http://{host}:{port}")
     app.run(host=host, port=port, debug=debug)
