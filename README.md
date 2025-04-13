@@ -1,103 +1,85 @@
-# Ɜrθ View - Integração SICAR
+# Erθ View
 
-Aplicativo para integração do Eroview com o Sistema de Cadastro Ambiental Rural (SICAR), permitindo buscar propriedades rurais usando coordenadas geográficas em vez do código CAR.
+Application for integrating Eroview with the Rural Environmental Registry System (SICAR), allowing rural properties to be searched using geographic coordinates instead of the CAR code.
 
-## Funcionalidades
+## Features
 
-- Busca de propriedades rurais por coordenadas geográficas (latitude/longitude)
-- Suporte para diferentes formatos de entrada (coordenadas diretas, URLs do Google Maps)
-- Visualização dos contornos das propriedades com destaque em amarelo
-- Download de mapas das propriedades
-- Download e extração de shapefiles
-- Simulação para testes quando o servidor SICAR não responde
+- Search rural properties by geographic coordinates (latitude/longitude)
+- Support for different input formats (direct coordinates, Google Maps URLs)
+- View property boundaries highlighted in yellow
+- Download property maps
 
-## Requisitos
+## Requirements
 
-- Python 3.6 ou superior
-- Bibliotecas Python listadas em `requirements.txt`
-- Navegador web compatível (Chrome recomendado)
-- Conexão com internet para acesso ao portal SICAR
+- Python 3.6 or higher
+- Python libraries listed in requirements.txt
+- Compatible web browser (Chrome recommended)
+- Internet connection for accessing the SICAR portal
 
-## Instalação
+## Installation
 
-1. Clone ou baixe este repositório
-2. Instale as dependências:
+1. Clone or download this repository
+2. Install dependencies:
    ```
    pip install -r requirements.txt
    ```
-3. Configure as variáveis de ambiente (opcional):
-   - `SICAR_HEADLESS`: Define se o navegador deve rodar em modo headless (sem interface gráfica)
-   - `SICAR_DEV_MODE`: Ativa recursos de desenvolvimento
-   - `SICAR_BROWSER`: Define qual navegador utilizar (chrome ou firefox)
+3. Configure environment variables (optional):
+   - `SICAR_HEADLESS`: Defines whether the browser should run in headless mode (without graphical interface)
+   - `SICAR_DEV_MODE`: Enables development features
+   - `SICAR_BROWSER`: Defines which browser to use (chrome or opera)
 
-## Uso
+## Usage
 
-### Coordenadas de teste
-Para testes, recomendamos usar as coordenadas: `-23.276064, -53.266292` (localizada em Douradina, Paraná)
+### Test Coordinates
+For testing, we recommend using the coordinates: -23.276064, -53.266292 (located in Douradina, Paraná)
 
-### Iniciando o aplicativo
+### Starting the Application
 ```
 python eroview_sicar_app.py
 ```
 
 ### Usando a interface web
-1. Acesse o aplicativo através do navegador no endereço indicado (geralmente http://localhost:5000)
-2. Na interface "Visualizador de Mapa SICAR", insira as coordenadas geográficas
-3. Clique em "Buscar Propriedade"
-4. Aguarde o processamento e visualize os resultados
+1. Access the application through the browser at the indicated address (usually http://localhost:5000)
+2. In the "SICAR Map Viewer" interface, enter the geographic coordinates
+3. Click "Search Property"
+4. Wait for processing and view the results
 
-## Solução de problemas comuns
+## Troubleshooting Common Issues
 
-### O navegador não abre dentro do iframe
-- Verifique se as opções de segurança do navegador permitem incorporação (embedding)
-- Garanta que o parâmetro `embed_browser` esteja definido como True
+### The browser does not open inside the iframe
+- Check if the browser’s security settings allow embedding)
+- Ensure that the embed_browser parameter is set to True
 
-### O cursor aparece na posição errada
-- Certifique-se de que o formato das coordenadas está correto (graus decimais)
-- Verifique se as coordenadas estão dentro do território brasileiro
+### The cursor appears in the wrong position
+- Ensure that the coordinate format is correct (decimal degrees)
+- Check if the coordinates are within Brazilian territory
 
-### O estado não é selecionado corretamente
-- O sistema usa múltiplos métodos para selecionar o estado. Verifique os logs para entender qual método falhou
+### The state is not selected correctly
+- The system uses multiple methods to select the state. Check the logs to understand which method failed
 
-## Estrutura do Projeto
+## Project Structure
 
-- `eroview_sicar_app.py` - Aplicativo principal com interface gráfica
-- `sicar_connector.py` - Módulo para comunicação com o SICAR
-- `requirements.txt` - Lista de dependências do projeto
+- `eroview_sicar_app.py` - Main application with graphical interface
+- `sicar_connector.py` - Module for communication with SICAR
+- `requirements.txt` - List of project dependencies
 
-## Próximos passos
+## Next Steps
 
-- Implementação da geolocalização no Android
-- Gerenciamento de shapefiles
-- Processamento geoespacial (cálculos de área, perímetro)
-- Melhorias na conexão com SICAR
-- Testes em campo
+- Implement geolocation on Android
+- Manage shapefiles
+- Geospatial processing (area, perimeter calculations)
+- Improvements in SICAR connection
+- Field testing
 
-## Contribuição
+## Contribution
 
-Contribuições são bem-vindas! Por favor, siga estas etapas:
-1. Faça um fork do repositório
-2. Crie uma branch para sua funcionalidade (`git checkout -b feature/nova-funcionalidade`)
-3. Faça commit das mudanças (`git commit -am 'Adiciona nova funcionalidade'`)
-4. Envie para o repositório (`git push origin feature/nova-funcionalidade`)
-5. Crie um Pull Request
+Contributions are welcome! Please follow these steps:
+1. Fork the repository
+2. Create a branch for your feature (git checkout -b feature/new-feature)
+3. Commit your changes (git commit -am 'Adds new feature')
+4. Push to the repository (git push origin feature/new-feature)
+5. Create a Pull Request
 
-## Licença
+## License
 
-Este projeto está licenciado sob a Licença Apache 2.0 - veja o arquivo LICENSE para detalhes.
-
-```
-Copyright 2023 Ɜrθ Software
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-```
+This project is licensed under the Apache License 2.0 - see the LICENSE file for details.
