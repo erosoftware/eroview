@@ -1,0 +1,3 @@
+[submodule "submodules/captcha_mirror"]
+    path = submodules/captcha_mirror
+    url = https://github.com/erosoftware/captcha_mirror.git

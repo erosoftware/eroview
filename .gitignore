@@ -1,30 +1,28 @@
-# Python cache files
 __pycache__/
 *.py[cod]
 *$py.class
-
-# Distribution / packaging
-dist/
+*.so
+.Python
 build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
 *.egg-info/
-
-# Virtual environments
-venv/
-env/
-ENV/
-
-# Log files
-*.log
-
-# Downloaded files and temporary data
-downloads/temp/*
-!downloads/temp/.gitkeep
-
-# Local configuration
+.installed.cfg
+*.egg
+MANIFEST
 .env
-
-# IDE specific files
-.idea/
-.vscode/
-*.swp
-*.swo
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
