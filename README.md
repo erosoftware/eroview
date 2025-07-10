@@ -8,5 +8,3 @@ Aplicação para consulta e visualização de propriedades rurais no SICAR (Sist
 - Visualização de mapas das propriedades
 - Download de shapefiles e mapas
 - Interface gráfica intuitiva
-
-## Requisitos
